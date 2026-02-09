@@ -37,22 +37,18 @@ void UWhisperSubsystem::StartRecording()
 		RecordingBuffer.Empty();
 	}
 
-	// Get device info
-	FAudioCaptureDeviceInfo DeviceInfo;
-	if (AudioCapture.GetAudioCaptureDeviceInfo(DeviceInfo))
-	{
-		SampleRate = DeviceInfo.SampleRate;
-		NumChannels = DeviceInfo.NumInputChannels;
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Whisper: Failed to get audio device info. Using defaults (16kHz, Mono)."));
-		SampleRate = 16000;
-		NumChannels = 1;
-	}
+	// In new AudioCapture API, we define params directly
+	Audio::FAudioCaptureDeviceParams Params;
+	Params.DeviceIndex = INDEX_NONE; // Default device
+	Params.NumInputChannels = 1;     // Mono
+	Params.SampleRate = 16000;       // 16kHz for Whisper
+	Params.BufferDuration = 0.0f;    // Default
+
+	SampleRate = Params.SampleRate;
+	NumChannels = Params.NumInputChannels;
 
 	// Define the callback for audio data
-	// Note: FAudioCapture usually provides data in float format (-1.0 to 1.0)
+	// Signature: void(const void* AudioData, int32 NumFrames, int32 InNumChannels, int32 InSampleRate, double StreamTime, bool bOverflow)
 	auto OnCapture = [this](const void* AudioData, int32 NumFrames, int32 InNumChannels, int32 InSampleRate, double StreamTime, bool bOverflow)
 	{
 		const float* FloatData = static_cast<const float*>(AudioData);
@@ -75,11 +71,8 @@ void UWhisperSubsystem::StartRecording()
 		}
 	};
 
-	// Open capture stream
-	// We ask for the device's native sample rate/channels to avoid internal resampling issues if possible,
-	// or we can try to force parameters if the API allows.
-
-	if (AudioCapture.OpenAudioCaptureStream(OnCapture, NumChannels, SampleRate, 1024))
+	// Open capture stream using new signature
+	if (AudioCapture.OpenAudioCaptureStream(Params, OnCapture, 1024))
 	{
 		AudioCapture.StartStream();
 		bIsRecording = true;

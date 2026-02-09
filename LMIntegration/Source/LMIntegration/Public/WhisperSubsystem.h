@@ -6,6 +6,10 @@
 #include "HttpModule.h"
 #include "WhisperSubsystem.generated.h"
 
+namespace Audio {
+	class FAudioCapture;
+}
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTranscriptionComplete, const FString&, TranscribedText);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTranscriptionFailed, const FString&, ErrorMessage);
 
@@ -49,7 +53,7 @@ private:
 
 private:
 	/** The audio capture device. */
-	FAudioCapture AudioCapture;
+	Audio::FAudioCapture AudioCapture;
 
 	/** Buffer to store raw PCM audio data. */
 	TArray<uint8> RecordingBuffer;
