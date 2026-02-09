@@ -1,5 +1,6 @@
 #include "WhisperSubsystem.h"
 #include "WhisperSettings.h"
+#include "AudioCaptureCore.h"
 #include "JsonObjectConverter.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"

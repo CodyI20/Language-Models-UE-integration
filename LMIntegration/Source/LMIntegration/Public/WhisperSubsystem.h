@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "AudioCapture.h"
+#include "AudioCaptureCore.h"
 #include "HttpModule.h"
 #include "WhisperSubsystem.generated.h"
 
