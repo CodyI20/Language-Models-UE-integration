@@ -42,7 +42,6 @@ void UWhisperSubsystem::StartRecording()
 	Params.DeviceIndex = INDEX_NONE; // Default device
 	Params.NumInputChannels = 1;     // Mono
 	Params.SampleRate = 16000;       // 16kHz for Whisper
-	Params.BufferDuration = 0.0f;    // Default
 
 	SampleRate = Params.SampleRate;
 	NumChannels = Params.NumInputChannels;
