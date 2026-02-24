@@ -16,7 +16,7 @@ public:
 	bool IsGPUAccelerationAvailable() const;
 	FString GetActiveBinariesPath() const { return ActiveBinariesPath; }
 
-	// NEW: Gets the cached whisper context, or loads it if it hasn't been loaded yet.
+	// Gets the cached whisper context, or loads it if it hasn't been loaded yet.
 	struct whisper_context* GetOrLoadGlobalContext(const FString& ModelPath, bool bUseGPU);
 
 private:
@@ -28,11 +28,11 @@ private:
 	bool bInitialized;
 	FString ActiveBinariesPath;
 
-	// NEW: Caching Variables
+	// Caching Variables
 	struct whisper_context* CachedWhisperContext = nullptr;
 	FString CachedModelPath;
 	bool bCachedWithGPU = false;
 	
-	// NEW: A lock to ensure thread safety if multiple threads try to load the model at once
+	// A lock to ensure thread safety if multiple threads try to load the model at once
 	FCriticalSection ContextLock; 
 };

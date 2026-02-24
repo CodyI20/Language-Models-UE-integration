@@ -123,10 +123,10 @@ bool FSpeechToTextModule::TryLoadBinariesFromPath(const FString& BinariesPath)
 
 void FSpeechToTextModule::ShutdownModule()
 {
-	// NEW: Free the globally cached whisper context
+	// Free the globally cached whisper context
 	if (CachedWhisperContext)
 	{
-		whisper_free(CachedWhisperContext);
+		whisper_free(CachedWhisperContext); 
 		CachedWhisperContext = nullptr;
 	}
 
