@@ -30,6 +30,10 @@
 			"Name": "SpeechToText",
 			"Enabled": true,
 			"MarketplaceURL": "com.epicgames.launcher://ue/Fab/product/cc24ebad-bb19-4f97-a468-fe411917a1bc"
+		},
+		{
+			"Name": "TextToSpeech",
+			"Enabled": true
 		}
 	]
 }
