@@ -337,38 +337,12 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         PCMSamples = MoveTemp(ResampledPCM);
     }
     
-    struct whisper_context* ctx = nullptr;
+    FSpeechToTextModule& SpeechToTextModule = FModuleManager::GetModuleChecked<FSpeechToTextModule>("UESTT");
+    struct whisper_context* ctx = SpeechToTextModule.GetOrLoadGlobalContext(ModelPath, Config.UseGPU);
     
-    {
-        FScopeLock Lock(&WhisperContextLock);
-        
-        struct whisper_context_params cparams = whisper_context_default_params();
-        
-        FSpeechToTextModule& SpeechToTextModule = FModuleManager::GetModuleChecked<FSpeechToTextModule>("UESTT");
-        bool bGPUAvailable = SpeechToTextModule.IsGPUAccelerationAvailable();
-        
-        if (Config.UseGPU && bGPUAvailable)
-        {
-            cparams.use_gpu = true;
-            UE_LOG(LogTranscription, Log, TEXT("Transcribing audio using CUDA GPU acceleration"));
-        }
-        else
-        {
-            cparams.use_gpu = false;
-            
-            if (Config.UseGPU && !bGPUAvailable) {
-                UE_LOG(LogTranscription, Log, TEXT("GPU acceleration requested but not available - falling back to CPU"));
-            } else {
-                UE_LOG(LogTranscription, Log, TEXT("Transcribing audio using CPU only (GPU acceleration disabled)"));
-            }
-        }
-        
-        ctx = whisper_init_from_file_with_params(TCHAR_TO_UTF8(*ModelPath), cparams);
-        
-        if (ctx == nullptr) {
-            Result.ErrorMessage = TEXT("Failed to initialize model.");
-            return Result;
-        }
+    if (ctx == nullptr) {
+        Result.ErrorMessage = TEXT("Failed to initialize or retrieve the global whisper model.");
+        return Result;
     }
     
     whisper_sampling_strategy strategy = Config.SamplingStrategy == ESamplingStrategy::Greedy ? 
@@ -491,8 +465,6 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     
     Result.bSuccess = true;
     Result.ProcessingTimeSeconds = FPlatformTime::Seconds() - StartTime;
-    
-    whisper_free(ctx);
     
     return Result;
 }

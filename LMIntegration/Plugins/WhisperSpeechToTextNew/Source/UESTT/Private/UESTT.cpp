@@ -1,6 +1,7 @@
 // Copyright 2025 Lukas7251. All Rights Reserved.
 
 #include "UESTT.h"
+#include "whisper.h"
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IPluginManager.h"
@@ -122,6 +123,13 @@ bool FSpeechToTextModule::TryLoadBinariesFromPath(const FString& BinariesPath)
 
 void FSpeechToTextModule::ShutdownModule()
 {
+	// NEW: Free the globally cached whisper context
+	if (CachedWhisperContext)
+	{
+		whisper_free(CachedWhisperContext);
+		CachedWhisperContext = nullptr;
+	}
+
 	for (void* Handle : LoadedDllHandles)
 	{
 		if (Handle)
@@ -135,6 +143,54 @@ void FSpeechToTextModule::ShutdownModule()
 bool FSpeechToTextModule::IsGPUAccelerationAvailable() const
 {
 	return bGPUAccelerationAvailable;
+}
+
+struct whisper_context* FSpeechToTextModule::GetOrLoadGlobalContext(const FString& ModelPath, bool bUseGPU)
+{
+	FScopeLock Lock(&ContextLock);
+
+	// 1. If we already have a context loaded with the same model and GPU settings, return it instantly!
+	if (CachedWhisperContext && CachedModelPath == ModelPath && bCachedWithGPU == bUseGPU)
+	{
+		return CachedWhisperContext;
+	}
+
+	// 2. If a DIFFERENT model is requested, free the old one to save RAM
+	if (CachedWhisperContext)
+	{
+		whisper_free(CachedWhisperContext);
+		CachedWhisperContext = nullptr;
+	}
+
+	// 3. Load the new context into memory
+	struct whisper_context_params cparams = whisper_context_default_params();
+	
+	if (bUseGPU && bGPUAccelerationAvailable)
+	{
+		cparams.use_gpu = true;
+		UE_LOG(LogUESTT, Log, TEXT("Loading Whisper model globally with CUDA GPU acceleration"));
+	}
+	else
+	{
+		cparams.use_gpu = false;
+		UE_LOG(LogUESTT, Log, TEXT("Loading Whisper model globally with CPU only"));
+	}
+
+	CachedWhisperContext = whisper_init_from_file_with_params(TCHAR_TO_UTF8(*ModelPath), cparams);
+	
+	// 4. Update our cache trackers
+	if (CachedWhisperContext)
+	{
+		CachedModelPath = ModelPath;
+		bCachedWithGPU = bUseGPU;
+	}
+	else
+	{
+		CachedModelPath = TEXT("");
+		bCachedWithGPU = false;
+	}
+
+	return CachedWhisperContext;
 }
 
 #undef LOCTEXT_NAMESPACE
