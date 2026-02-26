@@ -1,7 +1,5 @@
 ﻿// SpeechToTextStreamingComponent.cpp
 #include "SpeechToTextStreamingComponent.h"
-#include "Voice.h"
-#include "TimerManager.h"
 #include "WhisperStreamingThread.h"
 #include "HAL/RunnableThread.h"
 #include "Misc/Paths.h"
@@ -24,7 +22,7 @@ void USpeechToTextStreamingComponent::EndPlay(const EEndPlayReason::Type EndPlay
 
 bool USpeechToTextStreamingComponent::StartStreaming(FTranscriptionConfig Config)
 {
-    if (VoiceCapture.IsValid() || StreamingThread != nullptr)
+    if (StreamingThread != nullptr)
     {
         UE_LOG(LogTemp, Warning, TEXT("Streaming is already active."));
         return false;
@@ -77,45 +75,17 @@ bool USpeechToTextStreamingComponent::StartStreaming(FTranscriptionConfig Config
         UE_LOG(LogTemp, Error, TEXT("Streaming failed: Could not initialize whisper context."));
         return false;
     }
-
-    // 3. Start the Voice Capture
-    VoiceCapture = FVoiceModule::Get().CreateVoiceCapture("");
-    if (!VoiceCapture.IsValid() || !VoiceCapture->Start())
-    {
-        whisper_free(StreamingContext); // Clean up on failure
-        StreamingContext = nullptr;
-        UE_LOG(LogTemp, Warning, TEXT("Aborting because Voice capture is invalid!"));
-        return false;
-    }
+    
 
     // 4. Create and Start the Background Thread
     StreamingThread = new FWhisperStreamingThread(StreamingContext, Config, this);
     RunnableThread = FRunnableThread::Create(StreamingThread, TEXT("WhisperStreamingThread"), 0, TPri_BelowNormal);
-
-    // 5. Start the audio polling timer
-    GetWorld()->GetTimerManager().SetTimer(
-        AudioCaptureTimerHandle, 
-        this, 
-        &USpeechToTextStreamingComponent::CaptureAudioTick, 
-        0.1f, // 100ms
-        true
-    );
 
     return true;
 }
 
 void USpeechToTextStreamingComponent::StopStreaming()
 {
-    // 1. Stop the polling timer
-    GetWorld()->GetTimerManager().ClearTimer(AudioCaptureTimerHandle);
-
-    // 2. Stop microphone capture
-    if (VoiceCapture.IsValid())
-    {
-        VoiceCapture->Stop();
-        VoiceCapture = nullptr;
-    }
-
     // 3. Stop and destroy the thread cleanly
     if (StreamingThread)
     {
@@ -140,39 +110,7 @@ void USpeechToTextStreamingComponent::StopStreaming()
     }
 }
 
-void USpeechToTextStreamingComponent::CaptureAudioTick()
+void USpeechToTextStreamingComponent::ProcessAudioData(const TArray<float>& AudioData)
 {
-    if (!VoiceCapture.IsValid())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("NO VOICE CAPTURE!"));
-        return;
-    }
-
-    uint32 AvailableVoiceData = 0;
-    EVoiceCaptureState::Type CaptureState = VoiceCapture->GetCaptureState(AvailableVoiceData);
-
-    if (CaptureState == EVoiceCaptureState::Ok && AvailableVoiceData > 0)
-    {
-        TArray<uint8> RawVoiceData;
-        RawVoiceData.SetNumUninitialized(AvailableVoiceData);
-
-        uint32 OutAvailableVoiceData = 0;
-        VoiceCapture->GetVoiceData(RawVoiceData.GetData(), AvailableVoiceData, OutAvailableVoiceData);
-        UE_LOG(LogTemp, Warning, TEXT("Captured %d bytes of audio from mic."), OutAvailableVoiceData);
-
-        // Convert the 16-bit PCM byte array to float array (-1.0f to 1.0f) for Whisper
-        int32 NumSamples = OutAvailableVoiceData / 2; // 2 bytes per 16-bit sample
-        TArray<float> FloatSamples;
-        FloatSamples.SetNumUninitialized(NumSamples);
-
-        const int16* SamplePtr = reinterpret_cast<const int16*>(RawVoiceData.GetData());
-        for (int32 i = 0; i < NumSamples; ++i)
-        {
-            // Divide by 32768.0f to normalize, exactly as done in your ConvertAudioToWhisperFormat function
-            FloatSamples[i] = static_cast<float>(SamplePtr[i]) / 32768.0f; 
-        }
-
-        // TODO: Push FloatSamples to your FWhisperStreamingThread's thread-safe buffer
-        if (StreamingThread) { StreamingThread->PushAudio(FloatSamples); }
-    }
+    if (StreamingThread) { StreamingThread->PushAudio(AudioData); }
 }

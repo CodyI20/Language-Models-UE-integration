@@ -32,25 +32,26 @@ void FWhisperStreamingThread::PushAudio(const TArray<float>& NewSamples)
 
     FScopeLock Lock(&AudioMutex);
     
-    // 1. Calculate the volume of this new specific chunk
     float ChunkVolume = CalculateRMS(NewSamples);
     
-    // 2. Determine if the user is speaking
+    // Log to see the microphone volume
+    UE_LOG(LogTemp, Warning, TEXT("Mic Volume (RMS): %f"), ChunkVolume);
+    
     if (ChunkVolume > Config.VolumeThreshold)
     {
         bHasStartedSpeaking = true;
-        CurrentSilenceDuration = 0.0f; // Reset silence timer
+        CurrentSilenceDuration = 0.0f;
     }
     else if (bHasStartedSpeaking)
     {
-        // We calculate duration based on the number of samples. 
-        // 16000 samples = 1 second.
         float ChunkDurationInSeconds = (float)NewSamples.Num() / 16000.0f;
         CurrentSilenceDuration += ChunkDurationInSeconds;
     }
 
-    // 3. Append to our sliding window
     AudioBuffer.Append(NewSamples);
+    
+    // Track new samples independently of the buffer's total size
+    SamplesSinceLastProcess += NewSamples.Num(); 
 
     if (AudioBuffer.Num() > MaxBufferSize)
     {
@@ -80,41 +81,49 @@ uint32 FWhisperStreamingThread::Run()
 {
     while (!bStopThread)
     {
-        // Sleep until PushAudio triggers the semaphore, checking at least every 100ms
-        Semaphore->Wait(100);
-        
+        Semaphore->Wait(100); 
         if (bStopThread) break;
 
+        bool bShouldFinalize = false;
         TArray<float> ProcessingBuffer;
+
         {
             FScopeLock Lock(&AudioMutex);
-            // Only process if we have a meaningful chunk of audio (e.g., 1 second)
-            UE_LOG(LogTemp, Warning, TEXT("Buffer Size: %d / %d"), AudioBuffer.Num(), StepSize);
-            if (AudioBuffer.Num() < StepSize)
+            
+            if (bHasStartedSpeaking && CurrentSilenceDuration >= Config.MaxSilenceToFinalize)
             {
-                continue; // Go back to sleep
+                bShouldFinalize = true;
+                bHasStartedSpeaking = false;
+                CurrentSilenceDuration = 0.0f;
             }
-            ProcessingBuffer = AudioBuffer; // Copy the buffer for safe processing
+
+            // Use the new tracker instead of AudioBuffer.Num()
+            if (!bShouldFinalize && SamplesSinceLastProcess < StepSize)
+            {
+                continue; // Go back to sleep and wait for more audio
+            }
+
+            if (AudioBuffer.Num() == 0) continue;
+
+            ProcessingBuffer = AudioBuffer; 
+            
+            // Reset the tracker after we copy the buffer
+            SamplesSinceLastProcess = 0; 
         }
 
-        // Setup Whisper parameters exactly like your file-based implementation
+        // Setup Whisper parameters
         whisper_sampling_strategy strategy = Config.SamplingStrategy == ESamplingStrategy::Greedy ? 
             WHISPER_SAMPLING_GREEDY : WHISPER_SAMPLING_BEAM_SEARCH;
             
-        // Force greedy sampling for maximum speed during real-time streaming
-        struct whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
+        struct whisper_full_params params = whisper_full_default_params(strategy);
         
         params.print_realtime = false;
         params.print_progress = false;
-        
-        // Disable context to prevent hallucinating past words in short buffers
         params.no_context = true; 
-        
-        // Allow multiple segments if the buffer gets longer than a few words
         params.single_segment = false; 
         
-        // CRITICAL FOR SPEED: Do not use "auto" language detection during streaming.
-        // It will cause massive stuttering. Default to "en" if empty or auto.
+        params.n_threads = Config.Threads > 0 ? FMath::Clamp(Config.Threads, 1, 32) : FMath::Clamp(FPlatformMisc::NumberOfCores(), 1, 4);
+        
         if (Config.Language.IsEmpty() || Config.Language.ToLower() == TEXT("auto"))
         {
             params.language = "en"; 
@@ -146,23 +155,10 @@ uint32 FWhisperStreamingThread::Run()
             }
 
             CurrentTranscript = CurrentTranscript.TrimStartAndEnd();
+            
+            UE_LOG(LogTemp, Warning, TEXT("Whisper Raw Output: [%s]"), *CurrentTranscript);
 
-            // 1. Evaluate VAD State BEFORE broadcasting
-            bool bShouldFinalize = false;
-            {
-                FScopeLock Lock(&AudioMutex);
-                if (bHasStartedSpeaking && CurrentSilenceDuration >= Config.MaxSilenceToFinalize)
-                {
-                    bShouldFinalize = true;
-                    
-                    // Reset states for the next sentence
-                    bHasStartedSpeaking = false;
-                    CurrentSilenceDuration = 0.0f;
-                    AudioBuffer.Empty(); // Clear the buffer so the next sentence starts fresh
-                }
-            }
-
-            // 2. Route the Transcript
+            // Route the Transcript
             if (!CurrentTranscript.IsEmpty() && ParentComponent)
             {
                 FString SafeTranscript = CurrentTranscript;
@@ -170,7 +166,6 @@ uint32 FWhisperStreamingThread::Run()
 
                 if (bShouldFinalize)
                 {
-                    // The user has paused. Lock in the Final text!
                     AsyncTask(ENamedThreads::GameThread, [SafeComp, SafeTranscript]()
                     {
                         if (IsValid(SafeComp)) { SafeComp->OnFinalTranscriptCompleted.Broadcast(SafeTranscript); }
@@ -178,7 +173,6 @@ uint32 FWhisperStreamingThread::Run()
                 }
                 else
                 {
-                    // The user is still talking. Update the Partial text!
                     AsyncTask(ENamedThreads::GameThread, [SafeComp, SafeTranscript]()
                     {
                         if (IsValid(SafeComp)) { SafeComp->OnPartialTranscriptUpdated.Broadcast(SafeTranscript); }
@@ -187,8 +181,16 @@ uint32 FWhisperStreamingThread::Run()
             }
         }
         
+        // 4. If we finalized, clear the buffer AFTER processing is complete
+        if (bShouldFinalize)
+        {
+            FScopeLock Lock(&AudioMutex);
+            AudioBuffer.Empty();
+            SamplesSinceLastProcess = 0;
+        }
+
         Semaphore->Reset();
-    } // End of while(!bStopThread) loop
+    } 
     return 0;
 }
 

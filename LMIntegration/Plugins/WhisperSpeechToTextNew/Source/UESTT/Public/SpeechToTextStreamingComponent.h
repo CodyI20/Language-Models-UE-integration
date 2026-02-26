@@ -11,7 +11,6 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPartialTranscriptUpdated, const F
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFinalTranscriptCompleted, const FString&, FinalText);
 
 class FWhisperStreamingThread;
-class IVoiceCapture;
 struct whisper_context;
 class FRunnableThread;
 
@@ -29,6 +28,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Speech to Text|Streaming")
 	void StopStreaming();
+	
+	UFUNCTION(BlueprintCallable, Category = "Speech to Text|Streaming")
+	void ProcessAudioData(const TArray<float>& AudioData);
 
 	UPROPERTY(BlueprintAssignable, Category = "Speech to Text|Streaming")
 	FOnPartialTranscriptUpdated OnPartialTranscriptUpdated;
@@ -37,15 +39,11 @@ public:
 	FOnFinalTranscriptCompleted OnFinalTranscriptCompleted;
 
 private:
-	void CaptureAudioTick();
-	
 	// The actual system thread running our FRunnable
 	FRunnableThread* RunnableThread = nullptr;
 	
 	// The loaded Whisper model context for this streaming session
 	struct whisper_context* StreamingContext = nullptr;
-
-	TSharedPtr<IVoiceCapture> VoiceCapture;
+	
 	FWhisperStreamingThread* StreamingThread = nullptr;
-	FTimerHandle AudioCaptureTimerHandle;
 };

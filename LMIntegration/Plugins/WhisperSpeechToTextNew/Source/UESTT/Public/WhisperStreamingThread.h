@@ -47,4 +47,6 @@ private:
 	
 	// REDUCED: Wake up and process every 400 milliseconds for a "live" feel
 	const int StepSize = 16000 * 0.4;
+	
+	int32 SamplesSinceLastProcess = 0;
 };
