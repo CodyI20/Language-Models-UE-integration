@@ -28,7 +28,7 @@ bool USpeechToTextStreamingComponent::StartStreaming(FTranscriptionConfig Config
         return false;
     }
 
-    // 1. Resolve the Model Path (Matching your SpeechToTextLibrary.cpp logic)
+    // 1. Resolve the Model Path
     FString ModelPath = Config.ModelPath;
     if (ModelPath.IsEmpty())
     {

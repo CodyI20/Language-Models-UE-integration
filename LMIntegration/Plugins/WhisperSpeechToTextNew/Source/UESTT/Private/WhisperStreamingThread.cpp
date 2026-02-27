@@ -154,7 +154,7 @@ uint32 FWhisperStreamingThread::Run()
                 }
             }
 
-            CurrentTranscript = CurrentTranscript.TrimStartAndEnd();
+            // CurrentTranscript = CurrentTranscript.TrimStartAndEnd();
             
             UE_LOG(LogTemp, Warning, TEXT("Whisper Raw Output: [%s]"), *CurrentTranscript);
 
