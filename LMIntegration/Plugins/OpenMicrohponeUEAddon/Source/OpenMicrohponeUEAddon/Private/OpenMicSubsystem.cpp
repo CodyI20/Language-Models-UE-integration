@@ -1,13 +1,18 @@
-#include "OpenMicComponent.h"
+#include "OpenMicSubsystem.h"
 #include "Voice.h"
 #include "TimerManager.h"
 
-UOpenMicComponent::UOpenMicComponent()
+void UOpenMicSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	Super::Initialize(Collection);
 }
 
-void UOpenMicComponent::StartMicrophone()
+void UOpenMicSubsystem::Deinitialize()
+{
+	Super::Deinitialize();
+}
+
+void UOpenMicSubsystem::StartMicrophone()
 {
 	// 1. Check if the VoiceCapture already exists first!...
 	if (VoiceCapture.IsValid())
@@ -15,6 +20,8 @@ void UOpenMicComponent::StartMicrophone()
 		UE_LOG(LogTemp, Warning, TEXT("VoiceCapture already exists!"));
 		return;
 	}
+	
+	UE_LOG(LogTemp, Log, TEXT("Starting voice capture..."));
 	
 	//... then create it
 	VoiceCapture = FVoiceModule::Get().CreateVoiceCapture(""); // Leaving the string empty ensures that the default microphone is used
@@ -34,12 +41,12 @@ void UOpenMicComponent::StartMicrophone()
 	GetWorld()->GetTimerManager().SetTimer(
 		AudioCaptureTimerHandle,
 		this,
-		&UOpenMicComponent::CaptureAudioTick,
+		&UOpenMicSubsystem::CaptureAudioTick,
 		0.1f, //100 ms
 		true);
 }
 
-void UOpenMicComponent::StopMicrophone()
+void UOpenMicSubsystem::StopMicrophone()
 {
 	// 1. Stop the timer
 	GetWorld()->GetTimerManager().ClearTimer(AudioCaptureTimerHandle);
@@ -52,7 +59,7 @@ void UOpenMicComponent::StopMicrophone()
 	}
 }
 
-void UOpenMicComponent::CaptureAudioTick()
+void UOpenMicSubsystem::CaptureAudioTick()
 {
 	// 1. Verify the validity of VoiceCapture
 	if (!VoiceCapture.IsValid())

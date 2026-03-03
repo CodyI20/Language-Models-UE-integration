@@ -4,18 +4,20 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "OpenMicComponent.generated.h"
+#include "OpenMicSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam (FBroadcastAudioFromMicrophone, const TArray<float>&, AudioSamples);
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class OPENMICROHPONEUEADDON_API UOpenMicComponent : public UActorComponent
+UCLASS( ClassGroup=(Custom))
+class OPENMICROHPONEUEADDON_API UOpenMicSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
 public:	
-	// Sets default values for this component's properties
-	UOpenMicComponent();
+	
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+	
 	
 	UPROPERTY(BlueprintAssignable, Category = "Microphone")
 	FBroadcastAudioFromMicrophone OnAudioCaptured;

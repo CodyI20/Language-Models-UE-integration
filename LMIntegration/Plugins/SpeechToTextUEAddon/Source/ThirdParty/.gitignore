@@ -1,0 +1,3 @@
+# Un-ignore libraries for this specific plugin
+!*.dll
+!*.lib
