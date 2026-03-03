@@ -4,9 +4,6 @@
 
 #include "Modules/ModuleManager.h"
 
-// Forward declare the whisper context so we don't need to include whisper.h here
-struct whisper_context;
-
 class FSpeechToTextModule : public IModuleInterface
 {
 public:
@@ -14,10 +11,8 @@ public:
 	virtual void ShutdownModule() override;
 
 	bool IsGPUAccelerationAvailable() const;
+	// Returns the binaries directory path from which DLLs were loaded (Source/ThirdParty/whisper/bin/Win64_GPU or Win64_CPU).
 	FString GetActiveBinariesPath() const { return ActiveBinariesPath; }
-
-	// Gets the cached whisper context, or loads it if it hasn't been loaded yet.
-	struct whisper_context* GetOrLoadGlobalContext(const FString& ModelPath, bool bUseGPU);
 
 private:
 	bool TryLoadBinariesFromPath(const FString& BinariesPath);
@@ -27,12 +22,4 @@ private:
 	bool bGPUAccelerationAvailable;
 	bool bInitialized;
 	FString ActiveBinariesPath;
-
-	// Caching Variables
-	struct whisper_context* CachedWhisperContext = nullptr;
-	FString CachedModelPath;
-	bool bCachedWithGPU = false;
-	
-	// A lock to ensure thread safety if multiple threads try to load the model at once
-	FCriticalSection ContextLock; 
 };

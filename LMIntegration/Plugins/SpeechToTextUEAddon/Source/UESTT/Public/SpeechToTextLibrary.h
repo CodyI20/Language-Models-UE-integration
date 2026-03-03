@@ -108,16 +108,6 @@ struct FTranscriptionConfig
     /** Controls silence detection sensitivity (0.01-1.0). Lower values create more segments. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Advanced", meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float SegmentSensitivity = 0.01f;
-    
-    // Streaming Settings
-    
-    /** The RMS volume threshold to detect if someone is speaking. Increase this if background noise is triggering speech. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Streaming", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-    float VolumeThreshold = 0.015f;
-    
-    /** How long (in seconds) the microphone must be quiet before the current sentence is finalized. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Streaming", meta = (ClampMin = "0.1", ClampMax = "5.0"))
-    float MaxSilenceToFinalize = 0.8f;
 };
 
 UCLASS()

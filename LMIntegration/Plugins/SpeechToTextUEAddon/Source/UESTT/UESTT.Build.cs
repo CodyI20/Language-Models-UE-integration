@@ -62,7 +62,7 @@ public class UESTT : ModuleRules
         }
 
         PublicDependencyModuleNames.AddRange(new string[] {
-            "Core", "CoreUObject", "Engine", "Projects", "Voice"
+            "Core", "CoreUObject", "Engine", "Projects"
         });
     }
 }
