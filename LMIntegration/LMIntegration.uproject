@@ -33,6 +33,10 @@
 		{
 			"Name": "SpeechToText",
 			"Enabled": true
+		},
+		{
+			"Name": "NNERuntimeCoreML",
+			"Enabled": true
 		}
 	]
 }
