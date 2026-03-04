@@ -26,7 +26,7 @@ void UOpenMicSubsystem::StartMicrophone()
 	//... then create it
 	VoiceCapture = FVoiceModule::Get().CreateVoiceCapture(""); // Leaving the string empty ensures that the default microphone is used
 	
-	// In case there is no microphone, it would return a invalid pointer, thus causing the application to crash
+	// In case there is no microphone, it would return an invalid pointer, thus causing the application to crash
 	// To prevent this we can add a safety check
 	if (!VoiceCapture.IsValid() || !VoiceCapture->Start())
 	{
