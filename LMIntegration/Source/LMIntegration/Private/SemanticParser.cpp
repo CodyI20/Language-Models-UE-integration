@@ -110,7 +110,7 @@ TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputID
         return TArray<float>();
     }
 
-	// We know all-MiniLM-L6-v2 outputs exactly 384 dimensions per token.
+	// all-MiniLM-L6-v2 outputs exactly 384 dimensions per token.
 	// So the total floats = (Number of Tokens) * 384
 	uint64 TotalOutputFloats = InputIDs.Num() * 384;
 
