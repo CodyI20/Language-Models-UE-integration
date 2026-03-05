@@ -21,11 +21,11 @@ public:
 	bool InitializeModel(UNNEModelData* InModelData);
 	
 	UFUNCTION(BlueprintPure, Category = "Semantic Parsing")
-	float CalculateCosineSimilarity(const TArray<float>& VectorA, const TArray<float>& VectorB);
+	static float CalculateCosineSimilarity(const TArray<float>& VectorA, const TArray<float>& VectorB);
 	
 	// Takes the token and returns the 384-dimensional embedding vector
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	TArray<float> GetSemanticEmbedding(const TArray<int64>& InputIDs, const TArray<int64>& AttentionMask);
+	TArray<float> GetSemanticEmbedding(const TArray<int64>& InputIDs, const TArray<int64>& AttentionMask) const;
 	
 	// Load the tokenizer.json file into memory
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
@@ -50,7 +50,7 @@ private:
 	void* TokenizerInstance = nullptr;
 	
 	// Internal helper for the actual text-to-ID conversion
-	bool TokenizeString(const FString& InputText, TArray<int64>& OutInputIDs, TArray<int64>& OutAttentionMask);
-	
-	FString GetTokenizerFilePath();
+	bool TokenizeString(const FString& InputText, TArray<int64>& OutInputIDs, TArray<int64>& OutAttentionMask) const;
+
+	static FString GetTokenizerFilePath();
 };

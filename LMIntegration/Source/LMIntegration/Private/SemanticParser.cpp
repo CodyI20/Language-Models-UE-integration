@@ -64,7 +64,7 @@ float USemanticParser::CalculateCosineSimilarity(const TArray<float>& VectorA, c
 	return DotProduct / (FMath::Sqrt(NormA) + FMath::Sqrt(NormB));
 }
 
-TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputIDs, const TArray<int64>& AttentionMask)
+TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputIDs, const TArray<int64>& AttentionMask) const
 {
     if (!ModelInstance.IsValid())
     {
@@ -273,7 +273,7 @@ FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput)
 }
 
 bool USemanticParser::TokenizeString(const FString& InputText, TArray<int64>& OutInputIDs,
-                                     TArray<int64>& OutAttentionMask)
+                                     TArray<int64>& OutAttentionMask) const
 {
 	if (!TokenizerInstance) return false;
 	
