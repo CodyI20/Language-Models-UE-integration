@@ -8,12 +8,21 @@
 #include "NNERuntimeCPU.h"
 #include "SemanticParser.generated.h"
 /**
- * A multifunctional system which takes care of:
- * 1. Initializing and loading a reranker model (all-MiniLM-L6-v2-onnx)
+ * A multifunctional system which:
+ * 1. Initializes and loads a reranker model (all-MiniLM-L6-v2-onnx) through the Unreal Engine's Neural Network Engine
  * 2. Tokenizes sentences via the tokenizers-cpp third-party .h and .lib files
  * 3. Takes care of the cosine similarity calculations
  * 4. Returns the best matching command in FString format
  */
+USTRUCT(BlueprintType)
+struct FAliasList
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	TArray<FString> Aliases;
+};
+
 UCLASS()
 class USemanticParser : public UGameInstanceSubsystem
 {
@@ -36,10 +45,10 @@ public:
 	
 	// Calculate and save the embeddings for the predefined commands
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	void CacheCommandEmbeddings(const TArray<FString>& PredefinedCommands);
+	void CacheCommandEmbeddings(const TMap<FString, FAliasList>& CommandAliases);
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	FString GetBestMatchingCommand(const FString& PlayerInput);
+	FString GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f);
 	
 private:
 	// The compiled ONNX Model ready for CPU execution
@@ -54,6 +63,12 @@ private:
 	
 	// Internal helper for the actual text-to-ID conversion
 	bool TokenizeString(const FString& InputText, TArray<int64>& OutInputIDs, TArray<int64>& OutAttentionMask) const;
+	
+	// Maps a natural sentence directly to its math vector (e.g., "Lie down" -> [0.1, 0.4...])
+	TMap<FString, TArray<float>> CachedAliasEmbeddings;
+
+	// Maps that natural sentence back to the parent command (e.g., "Lie down" -> "ACTION_ONTHEGROUND")
+	TMap<FString, FString> AliasToCommandMap;
 
 	static FString GetTokenizerFilePath();
 };

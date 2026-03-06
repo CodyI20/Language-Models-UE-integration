@@ -38,31 +38,55 @@ bool USemanticParser::InitializeModel(UNNEModelData* InModelData)
 	return false;
 }
 
-float USemanticParser::CalculateCosineSimilarity(const TArray<float>& VectorA, const TArray<float>& VectorB)
+// float USemanticParser::CalculateCosineSimilarity(const TArray<float>& VectorA, const TArray<float>& VectorB)
+// {
+// 	if (VectorA.Num() != VectorB.Num() || VectorA.Num() == 0)
+// 	{
+// 		return 0.0f;
+// 	}
+// 	
+// 	float DotProduct = 0.0f;
+// 	float NormA = 0.0f;
+// 	float NormB = 0.0f;
+// 	
+// 	for (int32 i=0; i<VectorA.Num(); ++i)
+// 	{
+// 		DotProduct += VectorA[i] * VectorB[i];
+// 		NormA += VectorA[i] * VectorA[i];
+// 		NormB += VectorB[i] * VectorB[i];
+// 	}
+// 	
+// 	if (NormA == 0.0f || NormB == 0.0f)
+// 	{
+// 		return 0.0f;
+// 	}
+// 	
+// 	// Return the score between 0.0 and 1.0
+// 	return DotProduct / (FMath::Sqrt(NormA) + FMath::Sqrt(NormB));
+// }
+
+float USemanticParser::CalculateCosineSimilarity(const TArray<float>& VecA, const TArray<float>& VecB)
 {
-	if (VectorA.Num() != VectorB.Num() || VectorA.Num() == 0)
-	{
-		return 0.0f;
-	}
-	
+	// Safety check: Vectors must be the exact same size (384)
+	if (VecA.Num() != VecB.Num() || VecA.IsEmpty()) return 0.0f;
+
 	float DotProduct = 0.0f;
-	float NormA = 0.0f;
-	float NormB = 0.0f;
-	
-	for (int32 i=0; i<VectorA.Num(); ++i)
+	float MagnitudeA = 0.0f;
+	float MagnitudeB = 0.0f;
+
+	// Calculate Dot Product and the squared magnitudes in one pass
+	for (int32 i = 0; i < VecA.Num(); ++i)
 	{
-		DotProduct += VectorA[i] * VectorB[i];
-		NormA += VectorA[i] * VectorA[i];
-		NormB += VectorB[i] * VectorB[i];
+		DotProduct += VecA[i] * VecB[i];
+		MagnitudeA += VecA[i] * VecA[i];
+		MagnitudeB += VecB[i] * VecB[i];
 	}
-	
-	if (NormA == 0.0f || NormB == 0.0f)
-	{
-		return 0.0f;
-	}
-	
-	// Return the score between 0.0 and 1.0
-	return DotProduct / (FMath::Sqrt(NormA) + FMath::Sqrt(NormB));
+
+	// Safety check to prevent divide-by-zero crashes
+	if (MagnitudeA == 0.0f || MagnitudeB == 0.0f) return 0.0f;
+
+	// Final Cosine Similarity formula: DotProduct / (Sqrt(MagA) * Sqrt(MagB))
+	return DotProduct / (FMath::Sqrt(MagnitudeA) * FMath::Sqrt(MagnitudeB));
 }
 
 TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputIDs, const TArray<int64>& AttentionMask) const
@@ -169,102 +193,190 @@ bool USemanticParser::InitializeTokenizer()
 	return false;
 }
 
-void USemanticParser::CacheCommandEmbeddings(const TArray<FString>& PredefinedCommands)
+// void USemanticParser::CacheCommandEmbeddings(const TArray<FString>& PredefinedCommands)
+// {
+//     CachedCommandsEmbeddings.Empty();
+//
+//     if (PredefinedCommands.IsEmpty())
+//     {
+//         UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: The input array of predefined commands is empty!"));
+//         return;
+//     }
+//
+//     for (const FString& Command : PredefinedCommands)
+//     {
+//         TArray<int64> InputIDs;
+//         TArray<int64> AttentionMask;
+//     	
+//         if (!TokenizeString(Command, InputIDs, AttentionMask))
+//         {
+//             UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: TokenizeString failed for command: %s"), *Command);
+//             continue;
+//         }
+//     	
+//         TArray<float> Embedding = GetSemanticEmbedding(InputIDs, AttentionMask);
+//         if (Embedding.IsEmpty())
+//         {
+//             UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: GetSemanticEmbedding returned an empty array for: %s. Is ModelInstance valid?"), *Command);
+//             continue;
+//         }
+//     	
+//         if (Embedding.Num() != 384)
+//         {
+//             UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: Model output size is %d, expected 384 for command: %s"), Embedding.Num(), *Command);
+//             continue;
+//         }
+//
+//         // Success!
+//         CachedCommandsEmbeddings.Add(Command, Embedding);
+//     }
+//     
+//     // Final report
+//     if (CachedCommandsEmbeddings.IsEmpty())
+//     {
+//         UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: Finished loop, but 0 commands were cached."));
+//     }
+//     else
+//     {
+//         UE_LOG(LogTemp, Log, TEXT("CACHE SUCCESS: Successfully cached %d command embeddings."), CachedCommandsEmbeddings.Num());
+//     }
+// }
+void USemanticParser::CacheCommandEmbeddings(const TMap<FString, FAliasList>& CommandAliases)
 {
-    CachedCommandsEmbeddings.Empty();
+	CachedAliasEmbeddings.Empty();
+	AliasToCommandMap.Empty();
 
-    if (PredefinedCommands.IsEmpty())
-    {
-        UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: The input array of predefined commands is empty!"));
-        return;
-    }
+	if (CommandAliases.IsEmpty())
+	{
+		UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: The input dictionary is empty!"));
+		return;
+	}
 
-    for (const FString& Command : PredefinedCommands)
-    {
-        TArray<int64> InputIDs;
-        TArray<int64> AttentionMask;
-    	
-        if (!TokenizeString(Command, InputIDs, AttentionMask))
-        {
-            UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: TokenizeString failed for command: %s"), *Command);
-            continue;
-        }
-    	
-        TArray<float> Embedding = GetSemanticEmbedding(InputIDs, AttentionMask);
-        if (Embedding.IsEmpty())
-        {
-            UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: GetSemanticEmbedding returned an empty array for: %s. Is ModelInstance valid?"), *Command);
-            continue;
-        }
-    	
-        if (Embedding.Num() != 384)
-        {
-            UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: Model output size is %d, expected 384 for command: %s"), Embedding.Num(), *Command);
-            continue;
-        }
+	for (const auto& Pair : CommandAliases)
+	{
+		const FString& CommandID = Pair.Key;
+		// Grab the array out of the struct!
+		const TArray<FString>& Aliases = Pair.Value.Aliases; 
 
-        // Success!
-        CachedCommandsEmbeddings.Add(Command, Embedding);
-    }
+		for (const FString& Alias : Aliases)
+		{
+			TArray<int64> InputIDs;
+			TArray<int64> AttentionMask;
+
+			if (TokenizeString(Alias, InputIDs, AttentionMask))
+			{
+				TArray<float> Embedding = GetSemanticEmbedding(InputIDs, AttentionMask);
+                
+				if (Embedding.Num() == 384)
+				{
+					CachedAliasEmbeddings.Add(Alias, Embedding);
+					AliasToCommandMap.Add(Alias, CommandID);
+				}
+			}
+		}
+	}
     
-    // Final report
-    if (CachedCommandsEmbeddings.IsEmpty())
-    {
-        UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: Finished loop, but 0 commands were cached."));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Log, TEXT("CACHE SUCCESS: Successfully cached %d command embeddings."), CachedCommandsEmbeddings.Num());
-    }
+	UE_LOG(LogTemp, Warning, TEXT("CACHE SUCCESS: Loaded %d command aliases into memory."), CachedAliasEmbeddings.Num());
 }
 
-FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput)
-{
-	if (CachedCommandsEmbeddings.IsEmpty()) return TEXT("Error: Cache Empty");
+// FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput)
+// {
+// 	if (CachedCommandsEmbeddings.IsEmpty()) return TEXT("Error: Cache Empty");
+//
+// 	// Check what text the C++ is ACTUALLY receiving from the UI
+// 	UE_LOG(LogTemp, Warning, TEXT("--- PARSING NEW INPUT: '%s' ---"), *PlayerInput);
+//
+// 	TArray<int64> InputIDs;
+// 	TArray<int64> AttentionMask;
+//
+// 	if (!TokenizeString(PlayerInput, InputIDs, AttentionMask)) 
+// 	{
+// 		UE_LOG(LogTemp, Error, TEXT("MATCH ERROR: Tokenization Failed"));
+// 		return TEXT("Error: Tokenization Failed");
+// 	}
+//
+// 	TArray<float> PlayerEmbedding = GetSemanticEmbedding(InputIDs, AttentionMask);
+// 	if (PlayerEmbedding.IsEmpty())
+// 	{
+// 		UE_LOG(LogTemp, Error, TEXT("MATCH ERROR: Player Embedding Failed. NNE returned empty."));
+// 		return TEXT("Error: Embedding Failed");
+// 	}
+//
+// 	FString BestCommand = TEXT("None");
+// 	float HighestScore = -1.0f;
+//
+// 	for (const auto& CachedPair : CachedCommandsEmbeddings)
+// 	{
+// 		const FString& CommandName = CachedPair.Key;
+// 		const TArray<float>& CommandVector = CachedPair.Value;
+//
+// 		float SimilarityScore = CalculateCosineSimilarity(PlayerEmbedding, CommandVector);
+//
+// 		// Reveal the hidden math for every single command
+// 		UE_LOG(LogTemp, Log, TEXT("Comparing against '%s' -> Score: %f"), *CommandName, SimilarityScore);
+//
+// 		if (SimilarityScore > HighestScore)
+// 		{
+// 			HighestScore = SimilarityScore;
+// 			BestCommand = CommandName;
+// 		}
+// 	}
+// 	
+// 	// Around 0.55 to 0.6 is considered to be industry standard
+// 	float ConfidenceThreshold = 0.60f; 
+//
+// 	if (HighestScore < ConfidenceThreshold)
+// 	{
+// 		UE_LOG(LogTemp, Warning, TEXT("Score %f was too low. Returning None."), HighestScore);
+// 		return TEXT("None");
+// 	}
+// 	
+// 	// Announce the winner
+// 	UE_LOG(LogTemp, Warning, TEXT("WINNER: %s (Score: %f)"), *BestCommand, HighestScore);
+//     
+// 	return BestCommand;
+// }
 
-	// Check what text the C++ is ACTUALLY receiving from the UI
-	UE_LOG(LogTemp, Warning, TEXT("--- PARSING NEW INPUT: '%s' ---"), *PlayerInput);
+FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold)
+{
+	if (CachedAliasEmbeddings.IsEmpty()) return TEXT("Error: Cache Empty");
 
 	TArray<int64> InputIDs;
 	TArray<int64> AttentionMask;
 
-	if (!TokenizeString(PlayerInput, InputIDs, AttentionMask)) 
-	{
-		UE_LOG(LogTemp, Error, TEXT("MATCH ERROR: Tokenization Failed"));
-		return TEXT("Error: Tokenization Failed");
-	}
+	if (!TokenizeString(PlayerInput, InputIDs, AttentionMask)) return TEXT("Error: Tokenization Failed");
 
 	TArray<float> PlayerEmbedding = GetSemanticEmbedding(InputIDs, AttentionMask);
-	if (PlayerEmbedding.IsEmpty())
-	{
-		UE_LOG(LogTemp, Error, TEXT("MATCH ERROR: Player Embedding Failed. NNE returned empty."));
-		return TEXT("Error: Embedding Failed");
-	}
+	if (PlayerEmbedding.IsEmpty()) return TEXT("Error: Embedding Failed");
 
-	FString BestCommand = TEXT("None");
+	FString BestAlias = TEXT("None");
 	float HighestScore = -1.0f;
 
-	for (const auto& CachedPair : CachedCommandsEmbeddings)
+	// Compare player text against EVERY cached natural phrase
+	for (const auto& CachedPair : CachedAliasEmbeddings)
 	{
-		const FString& CommandName = CachedPair.Key;
-		const TArray<float>& CommandVector = CachedPair.Value;
+		const FString& AliasText = CachedPair.Key;
+		const TArray<float>& AliasVector = CachedPair.Value;
 
-		float SimilarityScore = CalculateCosineSimilarity(PlayerEmbedding, CommandVector);
-
-		// Reveal the hidden math for every single command
-		UE_LOG(LogTemp, Log, TEXT("Comparing against '%s' -> Score: %f"), *CommandName, SimilarityScore);
+		float SimilarityScore = CalculateCosineSimilarity(PlayerEmbedding, AliasVector);
 
 		if (SimilarityScore > HighestScore)
 		{
 			HighestScore = SimilarityScore;
-			BestCommand = CommandName;
+			BestAlias = AliasText;
 		}
 	}
-
-	// Announce the winner
-	UE_LOG(LogTemp, Warning, TEXT("WINNER: %s (Score: %f)"), *BestCommand, HighestScore);
+	
+	if (HighestScore < ConfidenceThreshold)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Rejected! Best match was '%s' (Score: %f) but fell below threshold of %f"), *BestAlias, HighestScore, ConfidenceThreshold);
+		return TEXT("None");
+	}
+	
+	FString WinningCommand = AliasToCommandMap[BestAlias];
+	UE_LOG(LogTemp, Warning, TEXT("WINNER: %s via alias '%s' (Score: %f)"), *WinningCommand, *BestAlias, HighestScore);
     
-	return BestCommand;
+	return WinningCommand;
 }
 
 bool USemanticParser::TokenizeString(const FString& InputText, TArray<int64>& OutInputIDs,
