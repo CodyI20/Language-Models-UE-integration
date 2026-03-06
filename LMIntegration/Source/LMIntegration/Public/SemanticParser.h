@@ -4,12 +4,15 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "NNE.h"
 #include "NNEModelData.h"
 #include "NNERuntimeCPU.h"
 #include "SemanticParser.generated.h"
 /**
- * 
+ * A multifunctional system which takes care of:
+ * 1. Initializing and loading a reranker model (all-MiniLM-L6-v2-onnx)
+ * 2. Tokenizes sentences via the tokenizers-cpp third-party .h and .lib files
+ * 3. Takes care of the cosine similarity calculations
+ * 4. Returns the best matching command in FString format
  */
 UCLASS()
 class USemanticParser : public UGameInstanceSubsystem

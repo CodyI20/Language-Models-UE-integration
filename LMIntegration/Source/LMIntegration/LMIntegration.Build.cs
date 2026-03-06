@@ -9,13 +9,14 @@ public class LMIntegration : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "NNE" });
+		// "NNE" is the must-have for the all-MiniLM-L6-v2
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "NNE" }); // <---- "NNE"
 		
 		string ThirdPartyPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "ThirdParty"));
 		string TokenizerPath = Path.Combine(ThirdPartyPath, "TokenizersCPP");
 		
 		PublicIncludePaths.Add(Path.Combine(TokenizerPath, "include"));
-
+		
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(TokenizerPath, "lib", "tokenizers_cpp.lib"));

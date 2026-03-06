@@ -3,6 +3,7 @@
 #include "LMIntegration/Public/SemanticParser.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "NNE.h"
 #include "Misc/FileHelper.h"
 
 // Protecting third party includes
@@ -144,10 +145,9 @@ TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputID
 
 bool USemanticParser::InitializeTokenizer()
 {
-	// 1. Get the file path
 	FString TokenizerFilePath = GetTokenizerFilePath();
     
-	// 2. Read the actual text content of the file into an FString
+	// Read the text content of the file into an FString
 	FString JsonContent;
 	if (!FFileHelper::LoadFileToString(JsonContent, *TokenizerFilePath))
 	{
@@ -155,10 +155,8 @@ bool USemanticParser::InitializeTokenizer()
 		return false;
 	}
     
-	// 3. Convert the raw JSON content to a standard C++ string
+	// Convert the raw JSON content to a standard C++ string
 	std::string StdJsonBlob = TCHAR_TO_UTF8(*JsonContent);
-    
-	// 4. Pass the actual JSON data to the Blob function
 	auto Tokenizer = Tokenizer::FromBlobJSON(StdJsonBlob);
     
 	if (Tokenizer)
@@ -185,23 +183,20 @@ void USemanticParser::CacheCommandEmbeddings(const TArray<FString>& PredefinedCo
     {
         TArray<int64> InputIDs;
         TArray<int64> AttentionMask;
-
-        // 1. Check if Tokenization fails
+    	
         if (!TokenizeString(Command, InputIDs, AttentionMask))
         {
             UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: TokenizeString failed for command: %s"), *Command);
             continue;
         }
-
-        // 2. Check if the NNE Model fails
+    	
         TArray<float> Embedding = GetSemanticEmbedding(InputIDs, AttentionMask);
         if (Embedding.IsEmpty())
         {
             UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: GetSemanticEmbedding returned an empty array for: %s. Is ModelInstance valid?"), *Command);
             continue;
         }
-
-        // 3. Check if the output size is wrong
+    	
         if (Embedding.Num() != 384)
         {
             UE_LOG(LogTemp, Error, TEXT("CACHE ERROR: Model output size is %d, expected 384 for command: %s"), Embedding.Num(), *Command);
@@ -227,7 +222,7 @@ FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput)
 {
 	if (CachedCommandsEmbeddings.IsEmpty()) return TEXT("Error: Cache Empty");
 
-	// LOG 1: Check what text the C++ is ACTUALLY receiving from your UI
+	// Check what text the C++ is ACTUALLY receiving from the UI
 	UE_LOG(LogTemp, Warning, TEXT("--- PARSING NEW INPUT: '%s' ---"), *PlayerInput);
 
 	TArray<int64> InputIDs;
@@ -256,7 +251,7 @@ FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput)
 
 		float SimilarityScore = CalculateCosineSimilarity(PlayerEmbedding, CommandVector);
 
-		// LOG 2: Reveal the hidden math for every single command
+		// Reveal the hidden math for every single command
 		UE_LOG(LogTemp, Log, TEXT("Comparing against '%s' -> Score: %f"), *CommandName, SimilarityScore);
 
 		if (SimilarityScore > HighestScore)
@@ -266,7 +261,7 @@ FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput)
 		}
 	}
 
-	// LOG 3: Announce the winner
+	// Announce the winner
 	UE_LOG(LogTemp, Warning, TEXT("WINNER: %s (Score: %f)"), *BestCommand, HighestScore);
     
 	return BestCommand;
