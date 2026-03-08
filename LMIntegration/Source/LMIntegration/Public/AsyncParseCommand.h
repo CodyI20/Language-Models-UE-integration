@@ -27,8 +27,8 @@ public:
 	FOnParseCompleted OnFail;
 	
 	// Function which creates the node in the blueprint menu
-	UFUNCTION(BlueprintCallable, meta=(BlueprintInternalUseOnly="true", WorldContext="WorldContextObject", Category="Semantic Parsing"))
-	static UAsyncParseCommand* AsyncGetBestMatchingCommand(UObject* WorldContextObject, USemanticParser* ParserSystem, const FString& PlayerInput, float ConfidenceThreshold = 0.7f);
+	UFUNCTION(BlueprintCallable, meta=(BlueprintInternalUseOnly="true", Category="Semantic Parsing"))
+	static UAsyncParseCommand* AsyncGetBestMatchingCommand(USemanticParser* ParserSystem, const FString& PlayerInput, float ConfidenceThreshold = 0.7f);
 	
 	virtual void Activate() override;
 	

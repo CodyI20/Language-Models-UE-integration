@@ -42,12 +42,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	bool InitializeModel(UNNEModelData* InModelData);
 	
-	UFUNCTION(BlueprintPure, Category = "Semantic Parsing")
-	static float CalculateCosineSimilarity(const TArray<float>& VectorA, const TArray<float>& VectorB);
-	
 	// Takes the token and returns the 384-dimensional embedding vector
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	TArray<float> GetSemanticEmbedding(const TArray<int64>& InputIDs, const TArray<int64>& AttentionMask) const;
+	TArray<float> GetSemanticEmbedding(const TArray<int64>& InputIDs) const;
 	
 	// Load the tokenizer.json file into memory
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
@@ -71,13 +68,16 @@ private:
 	void* TokenizerInstance = nullptr;
 	
 	// Internal helper for the actual text-to-ID conversion
-	bool TokenizeString(const FString& InputText, TArray<int64>& OutInputIDs, TArray<int64>& OutAttentionMask) const;
+	bool TokenizeString(const FString& InputText, TArray<int64>& OutInputIDs) const;
 	
 	// Maps a natural sentence directly to its math vector (e.g., "Lie down" -> [0.1, 0.4...])
 	TMap<FString, TArray<float>> CachedAliasEmbeddings;
 
 	// Maps that natural sentence back to the parent command (e.g., "Lie down" -> "ACTION_ONTHEGROUND")
 	TMap<FString, FString> AliasToCommandMap;
+	
+	// Mutex lock to enhance thread-safe operations for the LM
+	FCriticalSection InferenceMutex;
 
 	static FString GetTokenizerFilePath();
 };

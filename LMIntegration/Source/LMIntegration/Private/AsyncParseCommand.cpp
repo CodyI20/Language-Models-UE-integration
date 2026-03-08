@@ -4,8 +4,7 @@
 #include "AsyncParseCommand.h"
 #include "Async/Async.h"
 
-UAsyncParseCommand* UAsyncParseCommand::AsyncGetBestMatchingCommand(UObject* WorldContenxtObject,
-	USemanticParser* ParserSystem, const FString& PlayerInput, float ConfidenceThreshold)
+UAsyncParseCommand* UAsyncParseCommand::AsyncGetBestMatchingCommand(USemanticParser* ParserSystem, const FString& PlayerInput, float ConfidenceThreshold)
 {
 	// Node creation + input storage
 	UAsyncParseCommand* Node = NewObject<UAsyncParseCommand>();
@@ -37,6 +36,8 @@ void UAsyncParseCommand::Activate()
 			{
 				OnSuccess.Broadcast(Result);
 			}
+			
+			SetReadyToDestroy();
 		});
 	});
 }

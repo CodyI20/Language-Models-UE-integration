@@ -11,6 +11,12 @@ THIRD_PARTY_INCLUDES_START
 #include "tokenizers_cpp.h"
 THIRD_PARTY_INCLUDES_END
 
+// Anonymous namespace to prevent linkage errors in case any other .cpp file in the project ever uses the exact same variable name
+namespace
+{
+	constexpr int32 EmbeddingDimension = 384;
+}
+
 using namespace tokenizers;
 
 
@@ -38,29 +44,7 @@ bool USemanticParser::InitializeModel(UNNEModelData* InModelData)
 	return false;
 }
 
-float USemanticParser::CalculateCosineSimilarity(const TArray<float>& VecA, const TArray<float>& VecB)
-{
-	// Safety check: Vectors must be the exact same size (384)
-	if (VecA.Num() != VecB.Num() || VecA.IsEmpty()) return 0.0f;
-
-	float DotProduct = 0.0f;
-	float MagnitudeA = 0.0f;
-	float MagnitudeB = 0.0f;
-
-	// Calculate Dot Product and the squared magnitudes in one pass
-	for (int32 i = 0; i < VecA.Num(); ++i)
-	{
-		DotProduct += VecA[i] * VecB[i];
-		MagnitudeA += VecA[i] * VecA[i];
-		MagnitudeB += VecB[i] * VecB[i];
-	}
-	
-	if (MagnitudeA == 0.0f || MagnitudeB == 0.0f) return 0.0f;
-	
-	return DotProduct / (FMath::Sqrt(MagnitudeA) * FMath::Sqrt(MagnitudeB));
-}
-
-TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputIDs, const TArray<int64>& AttentionMask) const
+TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputIDs) const
 {
     if (!ModelInstance.IsValid()) return TArray<float>();
 	
@@ -101,42 +85,42 @@ TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputID
 
         if (InputName.Contains(TEXT("input_ids")))
         {
-            InputBindings[i].Data = (void*)CleanInputIDs.GetData();
+            InputBindings[i].Data = static_cast<void*>(CleanInputIDs.GetData());
             InputBindings[i].SizeInBytes = CleanInputIDs.Num() * sizeof(int64);
-            InputShapes[i] = UE::NNE::FTensorShape::Make({ 1, (uint32)CleanInputIDs.Num() });
+            InputShapes[i] = UE::NNE::FTensorShape::Make({ 1, static_cast<uint32>(CleanInputIDs.Num()) });
         }
         else if (InputName.Contains(TEXT("attention_mask")))
         {
-            InputBindings[i].Data = (void*)CleanAttentionMask.GetData();
+            InputBindings[i].Data = static_cast<void*>(CleanAttentionMask.GetData());
             InputBindings[i].SizeInBytes = CleanAttentionMask.Num() * sizeof(int64);
-            InputShapes[i] = UE::NNE::FTensorShape::Make({ 1, (uint32)CleanAttentionMask.Num() });
+            InputShapes[i] = UE::NNE::FTensorShape::Make({ 1, static_cast<uint32>(CleanAttentionMask.Num()) });
         }
         else if (InputName.Contains(TEXT("token_type_ids")))
         {
-            InputBindings[i].Data = (void*)TokenTypeIDs.GetData();
+            InputBindings[i].Data = static_cast<void*>(TokenTypeIDs.GetData());
             InputBindings[i].SizeInBytes = TokenTypeIDs.Num() * sizeof(int64);
-            InputShapes[i] = UE::NNE::FTensorShape::Make({ 1, (uint32)TokenTypeIDs.Num() });
+            InputShapes[i] = UE::NNE::FTensorShape::Make({ 1, static_cast<uint32>(TokenTypeIDs.Num()) });
         }
     }
 
     if (ModelInstance->SetInputTensorShapes(InputShapes) != UE::NNE::EResultStatus::Ok) return TArray<float>();
 
     // Math is now based ONLY on the real words
-    uint64 TotalOutputFloats = CleanInputIDs.Num() * 384;
+    uint64 TotalOutputFloats = CleanInputIDs.Num() * EmbeddingDimension;
     
     TArray<float> RawOutput;
     RawOutput.SetNumZeroed(TotalOutputFloats);
 
     TArray<UE::NNE::FTensorBindingCPU> OutputBindings;
     OutputBindings.SetNumZeroed(1);
-    OutputBindings[0].Data = (void*)RawOutput.GetData();
+    OutputBindings[0].Data = static_cast<void*>(RawOutput.GetData());
     OutputBindings[0].SizeInBytes = RawOutput.Num() * sizeof(float);
 
     if (ModelInstance->RunSync(InputBindings, OutputBindings) == UE::NNE::EResultStatus::Ok)
     {
         int32 SeqLen = CleanInputIDs.Num();
         TArray<float> FinalEmbedding;
-        FinalEmbedding.SetNumZeroed(384);
+        FinalEmbedding.SetNumZeroed(EmbeddingDimension);
 
         int32 ValidTokens = 0;
 
@@ -146,9 +130,9 @@ TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputID
             for (int32 TokenIdx = 1; TokenIdx < SeqLen - 1; ++TokenIdx)
             {
                 ValidTokens++;
-                for (int32 Dim = 0; Dim < 384; ++Dim)
+                for (int32 Dim = 0; Dim < EmbeddingDimension; ++Dim)
                 {
-                    int32 RawIndex = (TokenIdx * 384) + Dim;
+                    int32 RawIndex = (TokenIdx * EmbeddingDimension) + Dim;
                     if (RawIndex < RawOutput.Num()) FinalEmbedding[Dim] += RawOutput[RawIndex];
                 }
             }
@@ -158,9 +142,9 @@ TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputID
             for (int32 TokenIdx = 0; TokenIdx < SeqLen; ++TokenIdx)
             {
                 ValidTokens++;
-                for (int32 Dim = 0; Dim < 384; ++Dim)
+                for (int32 Dim = 0; Dim < EmbeddingDimension; ++Dim)
                 {
-                    int32 RawIndex = (TokenIdx * 384) + Dim;
+                    int32 RawIndex = (TokenIdx * EmbeddingDimension) + Dim;
                     if (RawIndex < RawOutput.Num()) FinalEmbedding[Dim] += RawOutput[RawIndex];
                 }
             }
@@ -168,9 +152,24 @@ TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputID
 
         if (ValidTokens > 0)
         {
-            for (int32 Dim = 0; Dim < 384; ++Dim) FinalEmbedding[Dim] /= (float)ValidTokens;
+            for (int32 Dim = 0; Dim < EmbeddingDimension; ++Dim) FinalEmbedding[Dim] /= static_cast<float>(ValidTokens);
         }
-
+    	
+    	float Magnitude = 0.0f;
+    	for (int32 Dim = 0; Dim < EmbeddingDimension; ++Dim)
+    	{
+    		Magnitude += FinalEmbedding[Dim] * FinalEmbedding[Dim];
+    	}
+    	
+    	if (Magnitude > 0.0f)
+    	{
+    		float SqrtMagnitude = FMath::Sqrt(Magnitude);
+    		float InvMag = 1.0f / SqrtMagnitude;
+    		for (int32 Dim = 0; Dim < EmbeddingDimension; ++Dim)
+    		{
+    			FinalEmbedding[Dim] *= InvMag;
+    		}
+    	}
         return FinalEmbedding;
     }
 
@@ -191,9 +190,8 @@ bool USemanticParser::InitializeTokenizer()
     
 	// Convert the raw JSON content to a standard C++ string
 	std::string StdJsonBlob = TCHAR_TO_UTF8(*JsonContent);
-	auto Tokenizer = Tokenizer::FromBlobJSON(StdJsonBlob);
-    
-	if (Tokenizer)
+
+	if (auto Tokenizer = Tokenizer::FromBlobJSON(StdJsonBlob))
 	{
 		TokenizerInstance = new std::unique_ptr<class Tokenizer>(std::move(Tokenizer));
 		return true;
@@ -205,13 +203,15 @@ bool USemanticParser::InitializeTokenizer()
 
 FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold)
 {
+	// Lock the function until the thread is done
+	FScopeLock Lock(&InferenceMutex);
+	
 	if (CachedAliasEmbeddings.IsEmpty()) return TEXT("Error: Cache Empty");
 
 	TArray<int64> InputIDs;
-	TArray<int64> AttentionMask;
-
-	if (!TokenizeString(PlayerInput, InputIDs, AttentionMask)) return TEXT("Error: Tokenization Failed");
 	
+	if (!TokenizeString(PlayerInput, InputIDs)) return TEXT("Error: Tokenization Failed");
+#if !UE_BUILD_SHIPPING
 	FString TokenString = TEXT("");
 	
 	for (int64 TokenID : InputIDs)
@@ -220,10 +220,13 @@ FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, floa
 	}
 	
 	UE_LOG(LogTemp, Warning, TEXT("Raw tokens for '%s': [ %s]"), *PlayerInput, *TokenString);
+#endif
+	
 
-	TArray<float> PlayerEmbedding = GetSemanticEmbedding(InputIDs, AttentionMask);
+	TArray<float> PlayerEmbedding = GetSemanticEmbedding(InputIDs);
 	if (PlayerEmbedding.IsEmpty()) return TEXT("Error: Embedding Failed");
 
+	FString WinningCommand = TEXT("ACTION_NONE");
 	FString BestAlias = TEXT("None");
 	float HighestScore = -1.0f;
 
@@ -233,12 +236,20 @@ FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, floa
 		const FString& AliasText = CachedPair.Key;
 		const TArray<float>& AliasVector = CachedPair.Value;
 
-		float SimilarityScore = CalculateCosineSimilarity(PlayerEmbedding, AliasVector);
+		float SimilarityScore = 0.0f;
+		for (int32 i = 0; i < EmbeddingDimension; ++i)
+		{
+			SimilarityScore += PlayerEmbedding[i] * AliasVector[i];
+		}
 
 		if (SimilarityScore > HighestScore)
 		{
 			HighestScore = SimilarityScore;
 			BestAlias = AliasText;
+			if (FString* FoundCommand = AliasToCommandMap.Find(AliasText))
+			{
+				WinningCommand = *FoundCommand;
+			}
 		}
 	}
 	
@@ -248,7 +259,6 @@ FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, floa
 		return TEXT("None");
 	}
 	
-	FString WinningCommand = AliasToCommandMap[BestAlias];
 	UE_LOG(LogTemp, Warning, TEXT("WINNER: %s via alias '%s' (Score: %f)"), *WinningCommand, *BestAlias, HighestScore);
     
 	return WinningCommand;
@@ -262,8 +272,8 @@ void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 		return;
 	}
 	
-	CachedAliasEmbeddings.Empty();
-	AliasToCommandMap.Empty();
+	CachedAliasEmbeddings.Reset();
+	AliasToCommandMap.Reset();
 	
 	TArray<FCommandAliasRow*> AllRows;
 	CommandTable->GetAllRows<FCommandAliasRow>(TEXT("SemanticParserCache"), AllRows);
@@ -278,11 +288,10 @@ void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 		for (const FString& Alias : Aliases)
 		{
 			TArray<int64> InputIDs;
-			TArray<int64> AttentionMask;
 			
-			if (TokenizeString(Alias, InputIDs, AttentionMask))
+			if (TokenizeString(Alias, InputIDs))
 			{
-				TArray<float> Embedding = GetSemanticEmbedding(InputIDs, AttentionMask);
+				TArray<float> Embedding = GetSemanticEmbedding(InputIDs);
 				
 				if (!Embedding.IsEmpty())
 				{
@@ -295,8 +304,7 @@ void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 	UE_LOG(LogTemp, Warning, TEXT("Data table SUCCESS: Loaded %d aliases into memory from Data Table."), CachedAliasEmbeddings.Num());
 }
 
-bool USemanticParser::TokenizeString(const FString& InputText, TArray<int64>& OutInputIDs,
-                                     TArray<int64>& OutAttentionMask) const
+bool USemanticParser::TokenizeString(const FString& InputText, TArray<int64>& OutInputIDs) const
 {
 	if (!TokenizerInstance) return false;
 	
@@ -307,25 +315,21 @@ bool USemanticParser::TokenizeString(const FString& InputText, TArray<int64>& Ou
 	
 	// Encode the string
 	std::vector<int> RawTokens = (*TokenizerPtr) -> Encode(StdInput);
-	
-	const int32 MaxSequenceLength = 128; // Standard for all-MiniLM-L6-v2
+
+	constexpr int32 MaxSequenceLength = 128; // Standard for all-MiniLM-L6-v2
 	OutInputIDs.Init(0,MaxSequenceLength);
-	OutAttentionMask.Init(0,MaxSequenceLength);
 	
 	// all-MiniLM-L6-v2 requires [CLS] (101) at the start and [SEP] (102) at the end
 	OutInputIDs[0]=101;
-	OutAttentionMask[0]=1;
 	
 	int32 CurrentIndex = 1;
 	for (int i=0; i<RawTokens.size() && CurrentIndex<MaxSequenceLength - 1; ++i)
 	{
 		OutInputIDs[CurrentIndex] = static_cast<int64>(RawTokens[i]);
-		OutAttentionMask[CurrentIndex] = 1;
 		CurrentIndex++;
 	}
 	
 	OutInputIDs[CurrentIndex] = 102;
-	OutAttentionMask[CurrentIndex] = 1;
 	
 	return true;
 }
