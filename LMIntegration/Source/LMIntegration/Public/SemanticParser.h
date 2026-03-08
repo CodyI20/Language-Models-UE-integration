@@ -6,6 +6,7 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "NNEModelData.h"
 #include "NNERuntimeCPU.h"
+#include "Engine/DataTable.h"
 #include "SemanticParser.generated.h"
 /**
  * A multifunctional system which:
@@ -19,6 +20,15 @@ struct FAliasList
 {
 	GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	TArray<FString> Aliases;
+};
+
+USTRUCT(BlueprintType)
+struct FCommandAliasRow : public FTableRowBase
+{
+	GENERATED_BODY()
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
 	TArray<FString> Aliases;
 };
@@ -43,12 +53,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	bool InitializeTokenizer();
 	
-	// Calculate and save the embeddings for the predefined commands
-	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	void CacheCommandEmbeddings(const TMap<FString, FAliasList>& CommandAliases);
-	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	FString GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f);
+	
+	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
+	void CacheEmbeddingsFromDataTable(UDataTable* CommandTable);
 	
 private:
 	// The compiled ONNX Model ready for CPU execution
