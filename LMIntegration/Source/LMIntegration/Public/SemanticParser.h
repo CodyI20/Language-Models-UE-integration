@@ -44,6 +44,9 @@ struct FCommandAliasRow : public FTableRowBase
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
 	TArray<FString> Aliases;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	TArray<FString> DialogueOptions;
 };
 
 UCLASS()
@@ -67,6 +70,9 @@ public:
 	ENPCAnimationID GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f);
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
+	FString GetRandomDialogueOption(ENPCAnimationID CommandID);
+
+	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	void CacheEmbeddingsFromDataTable(UDataTable* CommandTable);
 	
 private:
@@ -88,6 +94,8 @@ private:
 
 	// Maps that natural sentence back to the parent command (e.g., "Lie down" -> "ACTION_ONTHEGROUND")
 	TMap<FString, ENPCAnimationID> AliasToCommandMap;
+	
+	TMap<ENPCAnimationID, FCommandAliasRow> CommandAliasesMap;
 	
 	// Mutex lock to enhance thread-safe operations for the LM
 	FCriticalSection InferenceMutex;

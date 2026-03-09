@@ -276,6 +276,19 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 	return WinningCommand;
 }
 
+FString USemanticParser::GetRandomDialogueOption(ENPCAnimationID CommandID)
+{
+	for (const auto& Pair : CommandAliasesMap)
+	{
+		if (Pair.Key == CommandID)
+		{
+			return Pair.Value.DialogueOptions[FMath::RandRange(0, Pair.Value.DialogueOptions.Num() - 1)];
+		}
+	}
+	
+	return TEXT("Not found");
+}
+
 void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 {
 	if (!CommandTable)
@@ -307,6 +320,7 @@ void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 				{
 					CachedAliasEmbeddings.Add(Alias, Embedding);
 					AliasToCommandMap.Add(Alias, CommandID);
+					CommandAliasesMap.Add(CommandID, *AllRows[i]);
 				}
 			}
 		}
