@@ -18,17 +18,18 @@ void UAsyncParseCommand::Activate()
 {
 	if (!Parser)
 	{
-		OnFail.Broadcast(TEXT("None"));
+		UE_LOG(LogTemp, Error, TEXT("Error: Parser not found!"));
+		OnFail.Broadcast(ENPCAnimationID::ACTION_NONE);
 		return;
 	}
 	
 	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
 	{
-		FString Result = Parser -> GetBestMatchingCommand(InputText, Threshold);
+		ENPCAnimationID Result = Parser -> GetBestMatchingCommand(InputText, Threshold);
 		
 		AsyncTask(ENamedThreads::GameThread, [this, Result]()
 		{
-			if (Result == TEXT("None") || Result.StartsWith(TEXT("Error")))
+			if (Result == ENPCAnimationID::ACTION_NONE)
 			{
 				OnFail.Broadcast(Result);
 			}

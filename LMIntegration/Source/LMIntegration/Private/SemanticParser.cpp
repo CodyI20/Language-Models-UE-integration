@@ -11,7 +11,7 @@ THIRD_PARTY_INCLUDES_START
 #include "tokenizers_cpp.h"
 THIRD_PARTY_INCLUDES_END
 
-// Anonymous namespace to prevent linkage errors in case any other .cpp file in the project ever uses the exact same variable name
+// Unnamed (Anonymous) namespace to prevent linkage errors in case any other .cpp file in the project ever uses the exact same variable name
 namespace
 {
 	constexpr int32 EmbeddingDimension = 384;
@@ -201,16 +201,24 @@ bool USemanticParser::InitializeTokenizer()
 	return false;
 }
 
-FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold)
+ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold)
 {
 	// Lock the function until the thread is done
 	FScopeLock Lock(&InferenceMutex);
 	
-	if (CachedAliasEmbeddings.IsEmpty()) return TEXT("Error: Cache Empty");
+	if (CachedAliasEmbeddings.IsEmpty())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Error: Cache is empty!"));
+		return ENPCAnimationID::ACTION_NONE;
+	};
 
 	TArray<int64> InputIDs;
 	
-	if (!TokenizeString(PlayerInput, InputIDs)) return TEXT("Error: Tokenization Failed");
+	if (!TokenizeString(PlayerInput, InputIDs))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Error: Tokenization Failed"));
+		return ENPCAnimationID::ACTION_NONE;
+	};
 #if !UE_BUILD_SHIPPING
 	FString TokenString = TEXT("");
 	
@@ -224,11 +232,15 @@ FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, floa
 	
 
 	TArray<float> PlayerEmbedding = GetSemanticEmbedding(InputIDs);
-	if (PlayerEmbedding.IsEmpty()) return TEXT("Error: Embedding Failed");
+	if (PlayerEmbedding.IsEmpty())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Error: Embedding Failed"));
+		return ENPCAnimationID::ACTION_NONE;
+	};
 
-	FString WinningCommand = TEXT("ACTION_NONE");
+	ENPCAnimationID WinningCommand = ENPCAnimationID::ACTION_NONE;
 	FString BestAlias = TEXT("None");
-	float HighestScore = -1.0f;
+	float Score = -1.0f;
 
 	// Compare the input text against every cached phrase
 	for (const auto& CachedPair : CachedAliasEmbeddings)
@@ -242,24 +254,24 @@ FString USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, floa
 			SimilarityScore += PlayerEmbedding[i] * AliasVector[i];
 		}
 
-		if (SimilarityScore > HighestScore)
+		if (SimilarityScore > Score)
 		{
-			HighestScore = SimilarityScore;
+			Score = SimilarityScore;
 			BestAlias = AliasText;
-			if (FString* FoundCommand = AliasToCommandMap.Find(AliasText))
+			if (ENPCAnimationID* FoundCommand = AliasToCommandMap.Find(AliasText))
 			{
 				WinningCommand = *FoundCommand;
 			}
 		}
 	}
 	
-	if (HighestScore < ConfidenceThreshold)
+	if (Score < ConfidenceThreshold)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Rejected! Best match was '%s' (Score: %f) but fell below threshold of %f"), *BestAlias, HighestScore, ConfidenceThreshold);
-		return TEXT("None");
+		UE_LOG(LogTemp, Warning, TEXT("Rejected! Best match was '%s' (Score: %f) but fell below threshold of %f"), *BestAlias, Score, ConfidenceThreshold);
+		return ENPCAnimationID::ACTION_NONE;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("WINNER: %s via alias '%s' (Score: %f)"), *WinningCommand, *BestAlias, HighestScore);
+	UE_LOG(LogTemp, Warning, TEXT("WINNER: %s via alias '%s' (Score: %f)"), *UEnum::GetValueAsString(WinningCommand), *BestAlias, Score);
     
 	return WinningCommand;
 }
@@ -278,11 +290,9 @@ void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 	TArray<FCommandAliasRow*> AllRows;
 	CommandTable->GetAllRows<FCommandAliasRow>(TEXT("SemanticParserCache"), AllRows);
 	
-	TArray<FName> RowNames = CommandTable->GetRowNames();
-	
 	for (int32 i=0; i<AllRows.Num(); ++i)
 	{
-		FString CommandID = RowNames[i].ToString();
+		ENPCAnimationID CommandID = AllRows[i]->CommandID;
 		const TArray<FString>& Aliases = AllRows[i] -> Aliases;
 		
 		for (const FString& Alias : Aliases)

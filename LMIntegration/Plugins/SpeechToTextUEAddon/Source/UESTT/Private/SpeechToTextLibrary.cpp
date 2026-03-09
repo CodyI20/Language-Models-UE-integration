@@ -17,6 +17,7 @@
 DEFINE_LOG_CATEGORY_STATIC(LogTranscription, Log, All);
 
 // Default directory for model files relative to project
+// TODO: Add and test the anonymous namespace for this FString (maybe not needed since it's static)
 static const FString DefaultModelsDirectory = TEXT("Content/STTModels");
 
 // Global lock for whisper context operations

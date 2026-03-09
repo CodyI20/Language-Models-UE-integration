@@ -15,6 +15,16 @@
  * 3. Takes care of the cosine similarity calculations
  * 4. Returns the best matching command in FString format
  */
+
+UENUM(BLueprintType)
+enum class ENPCAnimationID : uint8
+{
+	ACTION_GROUND = 0 UMETA(DisplayName = "Ground"),
+	ACTION_HANDS_UP = 1 UMETA(DisplayName = "Hands up"),
+	ACTION_HANDS_BACK = 2 UMETA(DisplayName = "Hands back"),
+	ACTION_NONE = 4 UMETA(DisplayName = "None"),
+};
+
 USTRUCT(BlueprintType)
 struct FAliasList
 {
@@ -28,6 +38,9 @@ USTRUCT(BlueprintType)
 struct FCommandAliasRow : public FTableRowBase
 {
 	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	ENPCAnimationID CommandID = ENPCAnimationID::ACTION_NONE;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
 	TArray<FString> Aliases;
@@ -51,7 +64,7 @@ public:
 	bool InitializeTokenizer();
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	FString GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f);
+	ENPCAnimationID GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f);
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	void CacheEmbeddingsFromDataTable(UDataTable* CommandTable);
@@ -74,7 +87,7 @@ private:
 	TMap<FString, TArray<float>> CachedAliasEmbeddings;
 
 	// Maps that natural sentence back to the parent command (e.g., "Lie down" -> "ACTION_ONTHEGROUND")
-	TMap<FString, FString> AliasToCommandMap;
+	TMap<FString, ENPCAnimationID> AliasToCommandMap;
 	
 	// Mutex lock to enhance thread-safe operations for the LM
 	FCriticalSection InferenceMutex;
