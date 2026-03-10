@@ -14,7 +14,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnParseCompleted, const ENPCAnimationID&, BestCommand);
 
 UCLASS()
-class LMINTEGRATION_API UAsyncParseCommand : public UBlueprintAsyncActionBase
+class PARSINGSYSTEMUEADDON_API UAsyncParseCommand : public UBlueprintAsyncActionBase
 {
 	GENERATED_BODY()
 	

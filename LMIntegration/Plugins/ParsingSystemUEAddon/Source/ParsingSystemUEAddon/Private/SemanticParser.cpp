@@ -1,9 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "LMIntegration/Public/SemanticParser.h"
+#include "SemanticParser.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "NNE.h"
+#include "Interfaces/IPluginManager.h"
 #include "Misc/FileHelper.h"
 
 // Protecting third party includes
@@ -360,8 +361,8 @@ bool USemanticParser::TokenizeString(const FString& InputText, TArray<int64>& Ou
 
 FString USemanticParser::GetTokenizerFilePath()
 {
-	// FPaths::ProjectContentDir() dynamically finds the 'Content' folder in both the Editor and the shipped build
-	FString TokenizerPath = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("NLP_DATA"), TEXT("tokenizer.json"));
+	FString ContentDir = IPluginManager::Get().FindPlugin("ParsingSystemUEAddon")->GetContentDir();
+	FString TokenizerPath = FPaths::Combine(ContentDir, TEXT("NLP_DATA"), TEXT("tokenizer.json"));
 	
 	// Verify if the file exists before trying to load it
 	if (!IFileManager::Get().FileExists(*TokenizerPath))
