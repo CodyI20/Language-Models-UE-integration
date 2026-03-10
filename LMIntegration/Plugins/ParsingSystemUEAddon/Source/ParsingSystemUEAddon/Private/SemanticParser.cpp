@@ -23,7 +23,9 @@ using namespace tokenizers;
 void USemanticParser::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+	InitializeTokenizer();
 	InitializeModel();
+	CacheEmbeddingsFromDataTable();
 }
 
 bool USemanticParser::InitializeModel()
@@ -57,6 +59,33 @@ bool USemanticParser::InitializeModel()
 		return ModelInstance.IsValid();
 	}
 	
+	return false;
+}
+
+bool USemanticParser::InitializeTokenizer()
+{
+	UE_LOG(LogTemp, Log, TEXT("Initializing the tokenizer"));
+
+	FString TokenizerFilePath = GetTokenizerFilePath();
+    
+	// Read the text content of the file into an FString
+	FString JsonContent;
+	if (!FFileHelper::LoadFileToString(JsonContent, *TokenizerFilePath))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to read the file contents at: %s"), *TokenizerFilePath);
+		return false;
+	}
+    
+	// Convert the raw JSON content to a standard C++ string
+	std::string StdJsonBlob = TCHAR_TO_UTF8(*JsonContent);
+
+	if (auto Tokenizer = Tokenizer::FromBlobJSON(StdJsonBlob))
+	{
+		TokenizerInstance = new std::unique_ptr<class Tokenizer>(std::move(Tokenizer));
+		return true;
+	}
+    
+	UE_LOG(LogTemp, Error, TEXT("Failed to parse Tokenizer JSON data."));
 	return false;
 }
 
@@ -192,31 +221,6 @@ TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputID
     return TArray<float>();
 }
 
-bool USemanticParser::InitializeTokenizer()
-{
-	FString TokenizerFilePath = GetTokenizerFilePath();
-    
-	// Read the text content of the file into an FString
-	FString JsonContent;
-	if (!FFileHelper::LoadFileToString(JsonContent, *TokenizerFilePath))
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to read the file contents at: %s"), *TokenizerFilePath);
-		return false;
-	}
-    
-	// Convert the raw JSON content to a standard C++ string
-	std::string StdJsonBlob = TCHAR_TO_UTF8(*JsonContent);
-
-	if (auto Tokenizer = Tokenizer::FromBlobJSON(StdJsonBlob))
-	{
-		TokenizerInstance = new std::unique_ptr<class Tokenizer>(std::move(Tokenizer));
-		return true;
-	}
-    
-	UE_LOG(LogTemp, Error, TEXT("Failed to parse Tokenizer JSON data."));
-	return false;
-}
-
 ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold)
 {
 	// Lock the function until the thread is done
@@ -305,8 +309,13 @@ FString USemanticParser::GetRandomDialogueOption(ENPCAnimationID CommandID)
 	return TEXT("Not found");
 }
 
-void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
+void USemanticParser::CacheEmbeddingsFromDataTable()
 {
+	UE_LOG(LogTemp, Log, TEXT("Started caching the embeddings from the Data Table..."));
+	
+	FString AssetPath = TEXT("/ParsingSystemUEAddon/DT_SemanticCommands.DT_SemanticCommands");
+	UDataTable* CommandTable = LoadObject<UDataTable>(nullptr, *AssetPath);
+	
 	if (!CommandTable)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Data Table is missing or is invalid!"));

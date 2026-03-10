@@ -68,18 +68,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	TArray<float> GetSemanticEmbedding(const TArray<int64>& InputIDs) const;
 	
-	// Load the tokenizer.json file into memory
-	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	bool InitializeTokenizer();
+	
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	ENPCAnimationID GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f);
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	FString GetRandomDialogueOption(ENPCAnimationID CommandID);
-
-	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	void CacheEmbeddingsFromDataTable(UDataTable* CommandTable);
+	
 	
 private:
 	// The compiled ONNX Model ready for CPU execution
@@ -106,8 +102,13 @@ private:
 	// Mutex lock to enhance thread-safe operations for the LM
 	FCriticalSection InferenceMutex;
 	
+	// Load the tokenizer.json file into memory
+	bool InitializeTokenizer();
+	
 	bool InitializeModel();
-
+	
+	void CacheEmbeddingsFromDataTable();
+	
 	static FString GetTokenizerFilePath();
 	
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
