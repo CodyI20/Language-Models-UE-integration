@@ -49,12 +49,21 @@ struct FCommandAliasRow : public FTableRowBase
 	TArray<FString> DialogueOptions;
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCommandProcessed, const ENPCAnimationID&, CommandID);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTextProcessed, const FString&, Text);
+
 UCLASS()
 class USemanticParser : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 	
 public:
+	UPROPERTY(BlueprintCallable, BlueprintAssignable, Category = "Semantic Parsing")
+	FOnCommandProcessed OnCommandProcessed;
+	
+	UPROPERTY(BlueprintCallable, BlueprintAssignable, Category = "Semantic Parsing")
+	FOnTextProcessed OnTextProcessed;
+	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	bool InitializeModel(UNNEModelData* InModelData);
 	
