@@ -64,9 +64,6 @@ public:
 	UPROPERTY(BlueprintCallable, BlueprintAssignable, Category = "Semantic Parsing")
 	FOnTextProcessed OnTextProcessed;
 	
-	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	bool InitializeModel(UNNEModelData* InModelData);
-	
 	// Takes the token and returns the 384-dimensional embedding vector
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	TArray<float> GetSemanticEmbedding(const TArray<int64>& InputIDs) const;
@@ -108,6 +105,10 @@ private:
 	
 	// Mutex lock to enhance thread-safe operations for the LM
 	FCriticalSection InferenceMutex;
+	
+	bool InitializeModel();
 
 	static FString GetTokenizerFilePath();
+	
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 };

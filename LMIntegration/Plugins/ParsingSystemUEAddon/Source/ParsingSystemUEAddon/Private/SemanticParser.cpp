@@ -20,10 +20,24 @@ namespace
 
 using namespace tokenizers;
 
-
-bool USemanticParser::InitializeModel(UNNEModelData* InModelData)
+void USemanticParser::Initialize(FSubsystemCollectionBase& Collection)
 {
-	if (!InModelData) return false;
+	Super::Initialize(Collection);
+	InitializeModel();
+}
+
+bool USemanticParser::InitializeModel()
+{
+	UE_LOG(LogTemp, Log, TEXT("Initializing SemanticParser"));
+	
+	FString AssetPath = TEXT("/ParsingSystemUEAddon/Model/all-MiniLM-L6-v2-onnx.all-MiniLM-L6-v2-onnx");
+	UNNEModelData* FoundModel = LoadObject<UNNEModelData>(nullptr, *AssetPath);
+	
+	if (!FoundModel)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Model not loaded at path: %s"), *AssetPath);
+		return false;
+	}
 	
 	// Get the ONNX CPU Runtime
 	TWeakInterfacePtr<INNERuntimeCPU> Runtime = UE::NNE::GetRuntime<INNERuntimeCPU>(FString("NNERuntimeORTCpu"));
@@ -35,10 +49,11 @@ bool USemanticParser::InitializeModel(UNNEModelData* InModelData)
 	}
 	
 	// Create the Model and the Instance
-	TSharedPtr<UE::NNE::IModelCPU> Model = Runtime -> CreateModelCPU(InModelData);
+	TSharedPtr<UE::NNE::IModelCPU> Model = Runtime -> CreateModelCPU(FoundModel);
 	if (Model.IsValid())
 	{
 		ModelInstance = Model -> CreateModelInstanceCPU();
+		UE_LOG(LogTemp, Display, TEXT("Model loaded successfully!"));
 		return ModelInstance.IsValid();
 	}
 	
@@ -364,6 +379,9 @@ FString USemanticParser::GetTokenizerFilePath()
 	FString ContentDir = IPluginManager::Get().FindPlugin("ParsingSystemUEAddon")->GetContentDir();
 	FString TokenizerPath = FPaths::Combine(ContentDir, TEXT("NLP_DATA"), TEXT("tokenizer.json"));
 	
+	// Optional step but ensures no oddities happen with relative directories for example: Folder/../Folder by collapsing them
+	FPaths::CollapseRelativeDirectories(TokenizerPath);
+	
 	// Verify if the file exists before trying to load it
 	if (!IFileManager::Get().FileExists(*TokenizerPath))
 	{
@@ -372,3 +390,4 @@ FString USemanticParser::GetTokenizerFilePath()
 	
 	return TokenizerPath;
 }
+
