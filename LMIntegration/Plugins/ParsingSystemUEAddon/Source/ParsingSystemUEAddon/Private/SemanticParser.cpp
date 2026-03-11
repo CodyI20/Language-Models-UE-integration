@@ -32,7 +32,7 @@ bool USemanticParser::InitializeModel()
 {
 	UE_LOG(LogTemp, Log, TEXT("Initializing SemanticParser"));
 	
-	FString AssetPath = TEXT("/ParsingSystemUEAddon/Model/all-MiniLM-L6-v2-onnx.all-MiniLM-L6-v2-onnx");
+	FString AssetPath = TEXT("/ParsingSystemUEAddon/LMModel/all-MiniLM-L6-v2-onnx.all-MiniLM-L6-v2-onnx");
 	UNNEModelData* FoundModel = LoadObject<UNNEModelData>(nullptr, *AssetPath);
 	
 	if (!FoundModel)
