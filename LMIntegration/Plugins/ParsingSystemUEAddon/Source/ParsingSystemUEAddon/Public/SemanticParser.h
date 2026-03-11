@@ -49,8 +49,9 @@ struct FCommandAliasRow : public FTableRowBase
 	TArray<FString> DialogueOptions;
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTextSent, const FString&, TextSent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCommandProcessed, const ENPCAnimationID&, CommandID);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTextProcessed, const FString&, Text);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDialogueProcessed, const FString&, DialogueText);
 
 UCLASS()
 class USemanticParser : public UGameInstanceSubsystem
@@ -62,7 +63,10 @@ public:
 	FOnCommandProcessed OnCommandProcessed;
 	
 	UPROPERTY(BlueprintCallable, BlueprintAssignable, Category = "Semantic Parsing")
-	FOnTextProcessed OnTextProcessed;
+	FOnDialogueProcessed OnDialogueProcessed;
+	
+	UPROPERTY(BlueprintCallable, BlueprintAssignable, Category = "Semantic Parsing")
+	FOnTextSent OnTextSent;
 	
 	// Takes the token and returns the 384-dimensional embedding vector
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
