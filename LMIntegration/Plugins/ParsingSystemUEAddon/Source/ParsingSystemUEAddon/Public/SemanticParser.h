@@ -68,7 +68,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	TArray<float> GetSemanticEmbedding(const TArray<int64>& InputIDs) const;
 	
-	
+	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
+	void CacheEmbeddingsFromDataTable(UDataTable* CommandTable);
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	ENPCAnimationID GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f);
@@ -106,8 +107,6 @@ private:
 	bool InitializeTokenizer();
 	
 	bool InitializeModel();
-	
-	void CacheEmbeddingsFromDataTable();
 	
 	static FString GetTokenizerFilePath();
 	

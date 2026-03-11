@@ -5,6 +5,7 @@
 #include "HAL/FileManager.h"
 #include "NNE.h"
 #include "Interfaces/IPluginManager.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Misc/FileHelper.h"
 
 // Protecting third party includes
@@ -25,7 +26,6 @@ void USemanticParser::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	InitializeTokenizer();
 	InitializeModel();
-	CacheEmbeddingsFromDataTable();
 }
 
 bool USemanticParser::InitializeModel()
@@ -309,16 +309,15 @@ FString USemanticParser::GetRandomDialogueOption(ENPCAnimationID CommandID)
 	return TEXT("Not found");
 }
 
-void USemanticParser::CacheEmbeddingsFromDataTable()
+void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 {
-	UE_LOG(LogTemp, Log, TEXT("Started caching the embeddings from the Data Table..."));
-	
-	FString AssetPath = TEXT("/ParsingSystemUEAddon/DT_SemanticCommands.DT_SemanticCommands");
-	UDataTable* CommandTable = LoadObject<UDataTable>(nullptr, *AssetPath);
-	
 	if (!CommandTable)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Data Table is missing or is invalid!"));
+		// On-screen
+		UKismetSystemLibrary::PrintString(this, TEXT("Data table is missing! Please provide one in the parsing system actor component!\n"
+											   "Note that the system won't work without one"),
+			true, false, FLinearColor::Red, 100.f, NAME_Error);
 		return;
 	}
 	
