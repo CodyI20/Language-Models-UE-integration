@@ -75,10 +75,6 @@ struct FTranscriptionConfig
     
     // Core Settings
     
-    /** Path to the Whisper model file (*.bin). If empty, attempts to auto-detect in Content/STTModels. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Core")
-    FString ModelPath;
-    
     /** Language code (e.g., "en", "es", "auto"). Leave empty for auto-detection. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Core")
     FString Language;

@@ -274,30 +274,17 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         return Result;
     }
     
-    FString ModelDir;
-    if (!Config.ModelPath.IsEmpty())
+    FString ContentDir = IPluginManager::Get().FindPlugin("SpeechToText")->GetContentDir();
+    FString ModelDir = FPaths::Combine(ContentDir, TEXT("STTModel"));
+    
+    if (FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*ModelDir))
     {
-        ModelDir = Config.ModelPath;
-        if (!FPaths::FileExists(ModelDir))
-        {
-            FString ContentDir = IPluginManager::Get().FindPlugin("SpeechToText")->GetContentDir();
-            ModelDir = FPaths::Combine(ContentDir, TEXT("STTModel"));
-        }
-    }
-    else
-    {
-        FString ContentDir = IPluginManager::Get().FindPlugin("SpeechToText")->GetContentDir();
-        ModelDir = FPaths::Combine(ContentDir, TEXT("STTModel"));
-
-        if (FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*ModelDir))
-        {
-            TArray<FString> ModelFiles;
-            IFileManager::Get().FindFiles(ModelFiles, *FPaths::Combine(ModelDir, TEXT("*.bin")), true, false);
+        TArray<FString> ModelFiles;
+        IFileManager::Get().FindFiles(ModelFiles, *FPaths::Combine(ModelDir, TEXT("*.bin")), true, false);
             
-            if (ModelFiles.Num() > 0)
-            {
-                ModelDir = FPaths::Combine(ModelDir, ModelFiles[0]);
-            }
+        if (ModelFiles.Num() > 0)
+        {
+            ModelDir = FPaths::Combine(ModelDir, ModelFiles[0]);
         }
     }
     
