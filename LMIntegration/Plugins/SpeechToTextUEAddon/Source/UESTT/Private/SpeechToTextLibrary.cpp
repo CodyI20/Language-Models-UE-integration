@@ -8,17 +8,12 @@
 #include "HAL/PlatformProcess.h"
 #include "Async/AsyncWork.h"
 #include "GenericPlatform/GenericPlatformFile.h"
-#include "Misc/App.h"
 #include "UESTT.h"
 #include "Logging/LogMacros.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "whisper.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTranscription, Log, All);
-
-// Default directory for model files relative to project
-// TODO: Add and test the anonymous namespace for this FString (maybe not needed since it's static)
-static const FString DefaultModelsDirectory = TEXT("Content/STTModels");
 
 // Global lock for whisper context operations
 // Note: whisper.cpp context creation is not thread-safe, and while whisper_full() processing
@@ -91,7 +86,7 @@ TArray<float> ConvertAudioToWhisperFormat(const TArray<uint8>& RawAudioData, int
                 
                 if (sampleOffset + 1 < RawAudioData.Num()) {
                     const int16* samplePtr = reinterpret_cast<const int16*>(&RawAudioData[sampleOffset]);
-                    sample += (float)(*samplePtr) / 32768.0f;
+                    sample += static_cast<float>(*samplePtr) / 32768.0f;
                 }
             }
             
@@ -106,7 +101,7 @@ TArray<float> ConvertAudioToWhisperFormat(const TArray<uint8>& RawAudioData, int
                 int sampleOffset = dataOffset + (i * NumChannels + ch);
                 
                 if (sampleOffset < RawAudioData.Num()) {
-                    sample += ((float)RawAudioData[sampleOffset] - 128.0f) / 128.0f;
+                    sample += (static_cast<float>(RawAudioData[sampleOffset]) - 128.0f) / 128.0f;
                 }
             }
             
@@ -148,7 +143,7 @@ TArray<float> ResampleAudio(const TArray<float>& InputSamples, int SourceSampleR
     }
     
     TArray<float> ResampledPCM;
-    double ratio = (double)SourceSampleRate / (double)TargetSampleRate;
+    double ratio = static_cast<double>(SourceSampleRate) / static_cast<double>(TargetSampleRate);
     int targetLength = FMath::CeilToInt(InputSamples.Num() / ratio);
     if (targetLength <= 0) {
         return TArray<float>();
@@ -178,12 +173,9 @@ public:
     {
     }
 
-    FORCEINLINE TStatId GetStatId() const
-    {
-        RETURN_QUICK_DECLARE_CYCLE_STAT(FTranscriptionTask, STATGROUP_ThreadPoolAsyncTasks);
-    }
+    static TStatId GetStatId();
 
-    void DoWork()
+    void DoWork() const
     {
         FTranscriptionResult Result = USpeechToTextLibrary::TranscribeAudioInternal(AudioFilePath, Config);
         
@@ -205,6 +197,11 @@ private:
     FOnTranscriptionCompleted CompletionCallback;
     FTranscriptionConfig Config;
 };
+
+TStatId FTranscriptionTask::GetStatId()
+{
+    RETURN_QUICK_DECLARE_CYCLE_STAT(FTranscriptionTask, STATGROUP_ThreadPoolAsyncTasks);
+}
 
 void USpeechToTextLibrary::TranscribeAudioFileAsync(const FString& AudioFilePath, FTranscriptionConfig Config, const FOnTranscriptionCompleted& CompletionCallback)
 {
@@ -277,35 +274,36 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         return Result;
     }
     
-    FString ModelPath;
+    FString ModelDir;
     if (!Config.ModelPath.IsEmpty())
     {
-        ModelPath = Config.ModelPath;
-        if (!FPaths::FileExists(ModelPath))
+        ModelDir = Config.ModelPath;
+        if (!FPaths::FileExists(ModelDir))
         {
-            FString ProjectModelsDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), DefaultModelsDirectory));
-            ModelPath = FPaths::Combine(ProjectModelsDir, Config.ModelPath);
+            FString ContentDir = IPluginManager::Get().FindPlugin("SpeechToText")->GetContentDir();
+            ModelDir = FPaths::Combine(ContentDir, TEXT("STTModel"));
         }
     }
     else
     {
-        FString ProjectModelsDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), DefaultModelsDirectory));
-        TArray<FString> ModelFiles;
-        
-        if (FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*ProjectModelsDir))
+        FString ContentDir = IPluginManager::Get().FindPlugin("SpeechToText")->GetContentDir();
+        ModelDir = FPaths::Combine(ContentDir, TEXT("STTModel"));
+
+        if (FPlatformFileManager::Get().GetPlatformFile().DirectoryExists(*ModelDir))
         {
-            IFileManager::Get().FindFiles(ModelFiles, *FPaths::Combine(ProjectModelsDir, TEXT("*.bin")), true, false);
+            TArray<FString> ModelFiles;
+            IFileManager::Get().FindFiles(ModelFiles, *FPaths::Combine(ModelDir, TEXT("*.bin")), true, false);
             
             if (ModelFiles.Num() > 0)
             {
-                ModelPath = FPaths::Combine(ProjectModelsDir, ModelFiles[0]);
+                ModelDir = FPaths::Combine(ModelDir, ModelFiles[0]);
             }
         }
     }
     
-    if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*ModelPath))
+    if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*ModelDir))
     {
-        Result.ErrorMessage = FString::Printf(TEXT("No speech recognition model found. Please place a model file (*.bin) in your project's %s directory or specify a valid model path."), *DefaultModelsDirectory);
+        Result.ErrorMessage = FString::Printf(TEXT("No speech recognition model found. Please place a model file (*.bin) in your project's %s directory or specify a valid model path."), *ModelDir);
         return Result;
     }
     
@@ -325,9 +323,8 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         Result.ErrorMessage = ErrorMessage;
         return Result;
     }
-    
-    const int WhisperSampleRate = 16000;
-    if (SampleRate != WhisperSampleRate) {
+
+    if (constexpr int WhisperSampleRate = 16000; SampleRate != WhisperSampleRate) {
         TArray<float> ResampledPCM = ResampleAudio(PCMSamples, SampleRate, WhisperSampleRate);
         
         if (ResampledPCM.Num() == 0) {
@@ -342,20 +339,20 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     
     {
         FScopeLock Lock(&WhisperContextLock);
-        
-        struct whisper_context_params cparams = whisper_context_default_params();
+
+        whisper_context_params Cparams = whisper_context_default_params();
         
         FSpeechToTextModule& SpeechToTextModule = FModuleManager::GetModuleChecked<FSpeechToTextModule>("UESTT");
         bool bGPUAvailable = SpeechToTextModule.IsGPUAccelerationAvailable();
         
         if (Config.UseGPU && bGPUAvailable)
         {
-            cparams.use_gpu = true;
+            Cparams.use_gpu = true;
             UE_LOG(LogTranscription, Log, TEXT("Transcribing audio using CUDA GPU acceleration"));
         }
         else
         {
-            cparams.use_gpu = false;
+            Cparams.use_gpu = false;
             
             if (Config.UseGPU && !bGPUAvailable) {
                 UE_LOG(LogTranscription, Log, TEXT("GPU acceleration requested but not available - falling back to CPU"));
@@ -364,7 +361,7 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
             }
         }
         
-        ctx = whisper_init_from_file_with_params(TCHAR_TO_UTF8(*ModelPath), cparams);
+        ctx = whisper_init_from_file_with_params(TCHAR_TO_UTF8(*ModelDir), Cparams);
         
         if (ctx == nullptr) {
             Result.ErrorMessage = TEXT("Failed to initialize model.");
@@ -452,9 +449,8 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         Transcript = TEXT("No speech detected in audio.");
     } else {
         for (int i = 0; i < n_segments; ++i) {
-            const char* segment_text = whisper_full_get_segment_text(ctx, i);
-            if (segment_text) {
-                FString SegmentStr = UTF8_TO_TCHAR(segment_text);
+            if (const char* Segment_Text = whisper_full_get_segment_text(ctx, i)) {
+                FString SegmentStr = UTF8_TO_TCHAR(Segment_Text);
                 if (!SegmentStr.Contains(TEXT("[SOUND]")) && !SegmentStr.Contains(TEXT("[BLANK_AUDIO]"))) {
                     Transcript += SegmentStr;
                     Transcript += TEXT(" ");

@@ -10,7 +10,7 @@
 	"DocsURL": "https://github.com/lukas7251/SpeechToText-UnrealEngine",
 	"SupportURL": "",
 	"EngineVersion": "5.6.0",
-	"CanContainContent": false,
+	"CanContainContent": true,
 	"Installed": true,
 	"Modules": [
 		{
@@ -22,14 +22,15 @@
 			]
 		}
 	],
-	"PreBuildSteps": 
+	"PreBuildSteps":
 	{
-		"Win64": [
-		]
+		"Win64": []
 	},
-	"PostBuildSteps": 
+	"PostBuildSteps":
 	{
-		"Win64": [
-		]
-	}
+		"Win64": []
+	},
+	"MarketplaceURL": "",
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false
 }
