@@ -7,18 +7,46 @@
 #include "AudioCaptureComponent.h"
 #include "SpeechToTextComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnFinishedSTT, bool, SuccessResult, FString, TextResult, float, ProcessingTimeResult, FString, ErrorMessageResult);
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+UCLASS(BLueprintable, ClassGroup = (Custom))
 class UESTT_API USpeechToTextComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:	
 	USpeechToTextComponent();
+	
 
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 	
+	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "SpeechToText")
+	FOnFinishedSTT OnFinishedSTT;
+	
+	UPROPERTY(EditAnywhere, Category = "SpeechToText")
+	FString RecordingName;
+	
+	UPROPERTY(BlueprintReadOnly)
 	UAudioCaptureComponent* AudioCapture;
+	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "SpeechToText")
+	USoundSubmix* SoundSubmix;
+	
+	UPROPERTY(BlueprintReadOnly)
+	FString AudioFilePath;
+	
+	UFUNCTION(BlueprintCallable, Category = "SpeechToText")
+	void StartRecording();
+	
+	UFUNCTION(BlueprintCallable, Category = "SpeechToText")
+	void StopRecording();
+	
+private:
+	void SetWaVFileDirectory();
+	void SetFullAudioFilePath();
+	FString WavFileDirectory;
+	
+	TWeakObjectPtr<USoundWave> FileToOverride;
 };
