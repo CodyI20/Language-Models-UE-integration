@@ -18,7 +18,6 @@ USpeechToTextComponent::USpeechToTextComponent()
 
 void USpeechToTextComponent::StartRecording()
 {
-	AudioCapture->SetSubmixSend(SoundSubmix, 1.f);
 	AudioCapture->Start();
 	UAudioMixerBlueprintLibrary::StartRecordingOutput(this, 0.f, SoundSubmix);
 }
@@ -32,25 +31,16 @@ void USpeechToTextComponent::StopRecording()
 
 void USpeechToTextComponent::SetWaVFileDirectory()
 {
-	TSharedPtr<IPlugin> STTPlugin = IPluginManager::Get().FindPlugin("SpeechToText");
-	if (!STTPlugin.IsValid())
+	FString SavedDir = FPaths::ProjectSavedDir();
+	
+	WavFileDirectory = FPaths::Combine(SavedDir, TEXT("STT_Recordings"));
+	
+	// Checking if the directory exists before writing to it
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+	if (!PlatformFile.DirectoryExists(*WavFileDirectory))
 	{
-		UE_LOG(LogTemp, Error, TEXT("The plugin is not valid"));
-		// On-screen
-		UKismetSystemLibrary::PrintString(this, TEXT("The plugin '%s' is not valid"),
-	true, false, FLinearColor::Red, 100.f, NAME_Error);
-		return; 
+		PlatformFile.CreateDirectory(*WavFileDirectory);
 	}
-	FString ContentDir = STTPlugin->GetContentDir();
-	if (ContentDir.IsEmpty())
-	{
-		UE_LOG(LogTemp, Error, TEXT("The content directory of the plugin is empty!"));
-		// On-screen
-		UKismetSystemLibrary::PrintString(this, TEXT("The content directory of the plugin is empty!"),
-	true, false, FLinearColor::Red, 100.f, NAME_Error);
-		return;
-	}
-	WavFileDirectory = FPaths::Combine(ContentDir, TEXT("WavFiles"));
 }
 
 void USpeechToTextComponent::SetFullAudioFilePath()
@@ -86,7 +76,7 @@ void USpeechToTextComponent::BeginPlay()
 	AudioCapture = static_cast<UAudioCaptureComponent*>(OwningActor->AddComponentByClass(UAudioCaptureComponent::StaticClass(),
 		false,
 		FTransform::Identity,
-		false
+		true // bDeferredFinish being true allows for the injection of property changes before the component enters the world and starts its logic
 		));
 	
 	if (!AudioCapture)
@@ -94,8 +84,11 @@ void USpeechToTextComponent::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("Audio Capture Component is NULL"));
 		return;
 	}
-
-	AudioCapture->Activate(true);
+	
+	// Prevents the component from automatically capturing and playing audio on game launch
+	AudioCapture->bAutoActivate = false;
+	AudioCapture->SoundSubmix = SoundSubmix;
+	OwningActor->FinishAddComponent(AudioCapture, false, FTransform::Identity);
 	
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	

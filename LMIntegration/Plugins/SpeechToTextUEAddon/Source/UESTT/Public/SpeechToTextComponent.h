@@ -29,10 +29,10 @@ protected:
 	FString RecordingName;
 	
 	UPROPERTY(BlueprintReadOnly)
-	UAudioCaptureComponent* AudioCapture;
+	TObjectPtr<UAudioCaptureComponent> AudioCapture;
 	
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "SpeechToText")
-	USoundSubmix* SoundSubmix;
+	TObjectPtr<USoundSubmix> SoundSubmix;
 	
 	UPROPERTY(BlueprintReadOnly)
 	FString AudioFilePath;
