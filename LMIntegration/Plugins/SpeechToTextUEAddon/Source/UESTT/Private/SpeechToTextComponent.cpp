@@ -64,7 +64,7 @@ void USpeechToTextComponent::SetFullAudioFilePath()
 	true, false, FLinearColor::Red, 100.f, NAME_Error);
 		return;
 	}
-	AudioFilePath =  FPaths::Combine(WavFileDirectory,RecordingName, TEXT(".wav"));
+	AudioFilePath =  FPaths::Combine(WavFileDirectory,FString::Printf(TEXT("%s.wav"), *RecordingName));
 }
 
 // Called when the game starts
