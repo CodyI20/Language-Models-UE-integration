@@ -81,7 +81,7 @@ TArray<float> ConvertAudioToWhisperFormat(const TArray<uint8>& RawAudioData, int
     
     if (BitsPerSample == 16) {
         const int16* SampleData = reinterpret_cast<const int16*>(&RawAudioData[dataOffset]);
-        const float NormalizationFactor = 1.0f/32768.0f;
+        constexpr float NormalizationFactor = 1.0f/32768.0f;
         for (int i = 0; i < numSamples; i++) {
             float Sum = 0.0f;
             for (int ch = 0; ch < NumChannels; ch++)
@@ -94,7 +94,7 @@ TArray<float> ConvertAudioToWhisperFormat(const TArray<uint8>& RawAudioData, int
     }
     else if (BitsPerSample == 8) {
         const uint8* SampleData = &RawAudioData[dataOffset];
-        const float NormalizationFactor = 1.0f/128.0f;
+        constexpr float NormalizationFactor = 1.0f/128.0f;
         for (int i = 0; i < numSamples; i++) {
             float Sum = 0.0f;
             for (int ch = 0;ch < NumChannels; ch++)
