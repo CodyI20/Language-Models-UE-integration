@@ -1,4 +1,3 @@
-// Copyright 2025 Lukas7251. All Rights Reserved.
 
 #include "SpeechToTextLibrary.h"
 #include "Misc/FileHelper.h"
@@ -59,6 +58,7 @@ TArray<float> ConvertAudioToWhisperFormat(const TArray<uint8>& RawAudioData, int
         return PCMSamples;
     }
     
+    // Ensures file data bounds are not exceeded
     if (dataOffset + dataSize > RawAudioData.Num()) {
         dataSize = RawAudioData.Num() - dataOffset;
     }
@@ -75,60 +75,51 @@ TArray<float> ConvertAudioToWhisperFormat(const TArray<uint8>& RawAudioData, int
     }
     
     int numSamples = dataSize / (bytesPerSample * NumChannels);
-    PCMSamples.SetNumZeroed(numSamples);
+    PCMSamples.SetNumUninitialized(numSamples);
+    
+    const float ChannelMultiplier = 1.0f/static_cast<float>(NumChannels);
     
     if (BitsPerSample == 16) {
+        const int16* SampleData = reinterpret_cast<const int16*>(&RawAudioData[dataOffset]);
+        const float NormalizationFactor = 1.0f/32768.0f;
         for (int i = 0; i < numSamples; i++) {
-            float sample = 0.0f;
-            
-            for (int ch = 0; ch < NumChannels; ch++) {
-                int sampleOffset = dataOffset + (i * NumChannels + ch) * bytesPerSample;
-                
-                if (sampleOffset + 1 < RawAudioData.Num()) {
-                    const int16* samplePtr = reinterpret_cast<const int16*>(&RawAudioData[sampleOffset]);
-                    sample += static_cast<float>(*samplePtr) / 32768.0f;
-                }
+            float Sum = 0.0f;
+            for (int ch = 0; ch < NumChannels; ch++)
+            {
+                Sum += static_cast<float>(*SampleData++) * NormalizationFactor;
             }
             
-            PCMSamples[i] = sample / NumChannels;
+            PCMSamples[i] = Sum * ChannelMultiplier;
         }
     }
     else if (BitsPerSample == 8) {
+        const uint8* SampleData = &RawAudioData[dataOffset];
+        const float NormalizationFactor = 1.0f/128.0f;
         for (int i = 0; i < numSamples; i++) {
-            float sample = 0.0f;
-            
-            for (int ch = 0; ch < NumChannels; ch++) {
-                int sampleOffset = dataOffset + (i * NumChannels + ch);
-                
-                if (sampleOffset < RawAudioData.Num()) {
-                    sample += (static_cast<float>(RawAudioData[sampleOffset]) - 128.0f) / 128.0f;
-                }
+            float Sum = 0.0f;
+            for (int ch = 0;ch < NumChannels; ch++)
+            {
+                Sum += (static_cast<float>(*SampleData++) - 128.0f) * NormalizationFactor;
             }
             
-            PCMSamples[i] = sample / NumChannels;
+            PCMSamples[i] = Sum * ChannelMultiplier;
         }
     }
     else if (BitsPerSample == 32 && bytesPerSample == 4) {
+        const float* SampleData = reinterpret_cast<const float*>(&RawAudioData[dataOffset]);
         for (int i = 0; i < numSamples; i++) {
-            float sample = 0.0f;
-            
-            for (int ch = 0; ch < NumChannels; ch++) {
-                int sampleOffset = dataOffset + (i * NumChannels + ch) * bytesPerSample;
-                
-                if (sampleOffset + 3 < RawAudioData.Num()) {
-                    const float* samplePtr = reinterpret_cast<const float*>(&RawAudioData[sampleOffset]);
-                    sample += *samplePtr;
-                }
+            float Sum = 0.0f;
+            for (int ch = 0; ch < NumChannels; ch++)
+            {
+                Sum += *SampleData++;
             }
-            
-            PCMSamples[i] = sample / NumChannels;
+            PCMSamples[i] = Sum * ChannelMultiplier;
         }
     }
     else {
         OutErrorMessage = FString::Printf(TEXT("Error: Unsupported audio format: %d bits per sample"), BitsPerSample);
         return TArray<float>();
     }
-    
     return PCMSamples;
 }
 
@@ -149,17 +140,22 @@ TArray<float> ResampleAudio(const TArray<float>& InputSamples, int SourceSampleR
         return TArray<float>();
     }
     
-    ResampledPCM.SetNumZeroed(targetLength);
+    ResampledPCM.SetNumUninitialized(targetLength);
+    
+    const float* InData = InputSamples.GetData();
+    float* OutData = ResampledPCM.GetData();
+    const int InputMaxIdx = InputSamples.Num() - 1;
     
     for (int i = 0; i < targetLength; i++) {
         double sourceIdx = i * ratio;
-        int idx1 = FMath::FloorToInt(sourceIdx);
-        int idx2 = FMath::Min(idx1 + 1, InputSamples.Num() - 1);
-        double frac = sourceIdx - idx1;
+        int idx1 = static_cast<int>(sourceIdx);
+        int idx2 = FMath::Min(idx1 + 1, InputMaxIdx);
+        float frac = static_cast<float>(sourceIdx - idx1);
         
-        if (idx1 >= 0 && idx1 < InputSamples.Num() && idx2 >= 0 && idx2 < InputSamples.Num()) {
-            ResampledPCM[i] = InputSamples[idx1] * (1.0 - frac) + InputSamples[idx2] * frac;
-        }
+        float SampleA = InData[idx1];
+        float SampleB = InData[idx2];
+        
+        OutData[i] = SampleA + frac * (SampleB - SampleA);
     }
     
     return ResampledPCM;
@@ -179,17 +175,15 @@ public:
     {
         FTranscriptionResult Result = USpeechToTextLibrary::TranscribeAudioInternal(AudioFilePath, Config);
         
-        FTranscriptionResult ResultCopy = Result;
-        
-        FOnTranscriptionCompleted CallbackCopy = CompletionCallback;
-        
+        // C++14 Init-capture + MoveTemp
         FFunctionGraphTask::CreateAndDispatchWhenReady(
-            [CallbackCopy, ResultCopy]()
+            [Callback = CompletionCallback, FinalResult = MoveTemp(Result)]()
             {
-                CallbackCopy.ExecuteIfBound(ResultCopy);
+                // ExecuteIfBound safely checks if the calling BP / Actor still exists before it fires
+               Callback.ExecuteIfBound(FinalResult); 
             },
             TStatId(), nullptr, ENamedThreads::GameThread
-        );
+            );
     }
 
 private:
@@ -305,6 +299,8 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     int SampleRate = 0;
     TArray<float> PCMSamples = ConvertAudioToWhisperFormat(RawAudioData, SampleRate, ErrorMessage);
     
+    RawAudioData.Empty();
+    
     if (!ErrorMessage.IsEmpty())
     {
         Result.ErrorMessage = ErrorMessage;
@@ -394,7 +390,7 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     else
     {
         int cores = FPlatformMisc::NumberOfCores();
-        params.n_threads = FMath::Clamp(cores, 1, 4);
+        params.n_threads = FMath::Clamp(cores, 1, 8);
     }
     
     if (PCMSamples.Num() == 0) {
@@ -432,21 +428,31 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     FString Transcript;
     const int n_segments = whisper_full_n_segments(ctx);
     
-    if (n_segments == 0) {
-        Transcript = TEXT("No speech detected in audio.");
-    } else {
+    if (n_segments > 0) {
+        // Pre-allocating memory to avoid runtime reallocations (it's expensive on the CPU)
+        Result.Segments.Reserve(Result.Segments.Num() + n_segments);
+        
+        // Assuming there are around 50 chars per segment
+        Transcript.Reserve(Transcript.Len() + n_segments*50);
+        
         for (int i = 0; i < n_segments; ++i) {
             if (const char* Segment_Text = whisper_full_get_segment_text(ctx, i)) {
-                FString SegmentStr = UTF8_TO_TCHAR(Segment_Text);
-                if (!SegmentStr.Contains(TEXT("[SOUND]")) && !SegmentStr.Contains(TEXT("[BLANK_AUDIO]"))) {
+                if (!strstr(Segment_Text, "[SOUND]") && !strstr(Segment_Text, "[BLANK_AUDIO]")) {
+                    FString SegmentStr = UTF8_TO_TCHAR(Segment_Text);
+                    SegmentStr.TrimStartAndEndInline();
+                    if (SegmentStr.IsEmpty())
+                    {
+                        continue;
+                    }
+                    
                     Transcript += SegmentStr;
                     Transcript += TEXT(" ");
                     
                     // Build segment data with timestamps and confidence
-                    FTranscriptionSegment Segment;
-                    Segment.Text = SegmentStr.TrimStartAndEnd();
-                    Segment.StartTime = whisper_full_get_segment_t0(ctx, i) / 100.0f; // Convert to seconds
-                    Segment.EndTime = whisper_full_get_segment_t1(ctx, i) / 100.0f;
+                    FTranscriptionSegment& Segment = Result.Segments.Emplace_GetRef();
+                    Segment.Text = MoveTemp(SegmentStr);
+                    Segment.StartTime = whisper_full_get_segment_t0(ctx, i) * 0.01f; // Convert to seconds (multiplication is faster than division)
+                    Segment.EndTime = whisper_full_get_segment_t1(ctx, i) * 0.01f;
                     
                     // Calculate average confidence from segment tokens
                     const int n_tokens = whisper_full_n_tokens(ctx, i);
@@ -460,17 +466,17 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
                         }
                     }
                     Segment.Confidence = valid_tokens > 0 ? total_prob / valid_tokens : 0.0f;
-                    
-                    Result.Segments.Add(Segment);
                 }
             }
         }
     }
     
-    if (Transcript.IsEmpty() || Transcript.TrimStartAndEnd().IsEmpty()) {
+    Transcript.TrimStartAndEndInline();
+    
+    if (Transcript.IsEmpty()) {
         Result.Text = TEXT("No speech detected in audio.");
     } else {
-        Result.Text = Transcript.TrimStartAndEnd();
+        Result.Text = MoveTemp(Transcript);
     }
     
     Result.bSuccess = true;

@@ -1,4 +1,3 @@
-// Copyright 2025 Lukas7251. All Rights Reserved.
 
 #pragma once
 
@@ -75,8 +74,10 @@ struct FTranscriptionConfig
     
     // Core Settings
     
-    /** Language code (e.g., "en", "es", "auto"). Leave empty for auto-detection. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Core")
+    /** Language code (e.g., "en", "es", "auto"). Leave empty for auto-detection. 
+     * Replace the reflection macro with UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Core") to enable
+     */
+    UPROPERTY()
     FString Language;
     
     // Performance Settings
@@ -85,7 +86,9 @@ struct FTranscriptionConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Performance")
     bool UseGPU = true;
     
-    /** Number of CPU threads to use. 0 = Auto-detect (1-4 threads). */
+    /** Number of CPU threads to use. 0 = Auto-detect (1-8 threads). 
+     * If it causes instability / lag set a custom value e.g (4)
+     */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Performance", meta = (ClampMin = "0", ClampMax = "32"))
     int32 Threads = 0;
     
@@ -95,8 +98,10 @@ struct FTranscriptionConfig
     
     // Output Settings
     
-    /** If true, translates the speech to English. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Output")
+    /** If true, translates the speech to English. 
+     * Replace the reflection macro with UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Output") to enable
+     */
+    UPROPERTY()
     bool Translate = false;
     
     // Advanced Settings
