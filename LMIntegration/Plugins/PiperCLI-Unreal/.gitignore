@@ -74,5 +74,4 @@ Plugins/*/Intermediate/*
 DerivedDataCache/*
 
 ExternalResources/*
-ThirdParty/Piper/Win64/*
 !ThirdParty/Piper/Win64/model/PlaceVoiceModelsHere.txt
