@@ -100,6 +100,7 @@ void USoundWaveQueueComponent::PlayNextSoundInQueue()
 		else
 		{
 			UE_LOG(LogTemp, Warning, TEXT("::PlayNextSoundInQueue with no Target, not yet implemented."));
+			return;
 		}
 		bIsPlaying = true;
 	}
