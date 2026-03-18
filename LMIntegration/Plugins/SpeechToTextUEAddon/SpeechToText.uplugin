@@ -22,6 +22,16 @@
 			]
 		}
 	],
+	"Plugins": [
+		{
+			"Name": "AudioCapture",
+			"Enabled": true
+		},
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		}
+	],
 	"PreBuildSteps":
 	{
 		"Win64": []
