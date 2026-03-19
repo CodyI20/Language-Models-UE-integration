@@ -9,7 +9,7 @@ public class UESTT : ModuleRules
     public UESTT(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-        ShadowVariableWarningLevel = WarningLevel.Warning;
+        CppCompileWarningSettings.ShadowVariableWarningLevel = WarningLevel.Warning;
         PrecompileForTargets = PrecompileTargetsType.Any;
         bLegacyPublicIncludePaths = false;
         IWYUSupport = IWYUSupport.None;
