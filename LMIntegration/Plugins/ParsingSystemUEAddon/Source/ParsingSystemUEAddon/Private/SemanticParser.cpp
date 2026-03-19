@@ -5,7 +5,6 @@
 #include "HAL/FileManager.h"
 #include "NNE.h"
 #include "Interfaces/IPluginManager.h"
-#include "Kismet/KismetSystemLibrary.h"
 #include "Misc/FileHelper.h"
 
 // Protecting third party includes
@@ -315,9 +314,17 @@ void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Data Table is missing or is invalid!"));
 		// On-screen
-		UKismetSystemLibrary::PrintString(this, TEXT("Data table is missing! Please provide one in the parsing system actor component!\n"
-											   "Note that the system won't work without one"),
-			true, false, FLinearColor::Red, 100.f, NAME_Error);
+		if (GEngine)
+		{
+			const FString DebugMessage = FString::Printf(TEXT("Data table is missing! Please provide one in the parsing system actor component!\n"
+											   "Note that the system won't work without one"));
+			GEngine->AddOnScreenDebugMessage(256,
+				100.f,
+				FColor::Red, 
+				TEXT("Data table is missing! Please provide one in the parsing system actor component!\n"
+											   "Note that the system won't work without one"), 
+				false);
+		}
 		return;
 	}
 	
