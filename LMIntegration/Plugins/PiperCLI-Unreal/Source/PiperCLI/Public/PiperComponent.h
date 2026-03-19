@@ -44,7 +44,6 @@ class PIPERCLI_API UPiperComponent : public UCLIProcessComponent
 {
 	GENERATED_UCLASS_BODY()
 public:
-
 	UPROPERTY(BlueprintAssignable, Category = "Piper Events")
 	FPiperOnGeneratedAudioSignature OnAudioGenerated;
 
@@ -60,6 +59,7 @@ public:
 
 	//UCLIProcessComponent overrides
 	virtual void StartProcess() override;
+	virtual void SendInput(const FString& Text) override;
 
 	//UActorComponent overrides
 	virtual void InitializeComponent() override;
@@ -72,6 +72,8 @@ public:
 	~UPiperComponent();
 
 protected:
-
 	void SetSoundWaveFromWavBytes(USoundWaveProcedural* InSoundWave, const TArray<uint8>& InBytes);
+	
+	TQueue<FString> TextQueue;
+	TQueue<double> InputTimeQueue;
 };

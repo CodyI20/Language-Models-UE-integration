@@ -58,6 +58,13 @@ TArray<uint8> UPiperComponent::PCMToWav(const TArray<uint8>& InPCMBytes, int32 S
 	return WavBytes;
 }
 
+void UPiperComponent::SendInput(const FString& Text)
+{
+	InputTimeQueue.Enqueue(FPlatformTime::Seconds());
+	TextQueue.Enqueue(Text);
+	Super::SendInput(Text);
+}
+
 void UPiperComponent::SetSoundWaveFromWavBytes(USoundWaveProcedural* InSoundWave, const TArray<uint8>& InBytes)
 {
 	FWaveModInfo WaveInfo;
@@ -66,8 +73,7 @@ void UPiperComponent::SetSoundWaveFromWavBytes(USoundWaveProcedural* InSoundWave
 	if (WaveInfo.ReadWaveInfo(InBytes.GetData(), InBytes.Num(), &ErrorReason))
 	{
 		//copy header info
-		int32 DurationDiv = *WaveInfo.pChannels * *WaveInfo.pBitsPerSample * *WaveInfo.pSamplesPerSec;
-		if (DurationDiv)
+		if (const int32 DurationDiv = *WaveInfo.pChannels * *WaveInfo.pBitsPerSample * *WaveInfo.pSamplesPerSec)
 		{
 			InSoundWave->Duration = *WaveInfo.pWaveDataSize * 8.0f / DurationDiv;
 		}
@@ -99,7 +105,7 @@ USoundWave* UPiperComponent::WavToSoundWave(const TArray<uint8>& InWavBytes)
 	if (IsInGameThread())
 	{
 		SoundWave = NewObject<USoundWaveProcedural>(USoundWaveProcedural::StaticClass());
-		SetSoundWaveFromWavBytes((USoundWaveProcedural*)SoundWave, InWavBytes);
+		SetSoundWaveFromWavBytes(static_cast<USoundWaveProcedural*>(SoundWave), InWavBytes);
 	}
 	else
 	{
@@ -119,7 +125,7 @@ USoundWave* UPiperComponent::WavToSoundWave(const TArray<uint8>& InWavBytes)
 			FPlatformProcess::Sleep(0.0001f);
 		};
 
-		SetSoundWaveFromWavBytes((USoundWaveProcedural*)SoundWave, CopiedBytes);
+		SetSoundWaveFromWavBytes(static_cast<USoundWaveProcedural*>(SoundWave), CopiedBytes);
 	}
 
 	return SoundWave;
@@ -155,6 +161,7 @@ void UPiperComponent::InitializeComponent()
 		//This was a text message, not a piper pcm buffer
 		if (ResultString.Len() == OutputBytes.Num())
 		{
+			//Wrapper since we don't process bytes on the game thread
 			AsyncTask(ENamedThreads::GameThread, [&, ResultString]
 			{
 				OnOutputText.Broadcast(ResultString);
@@ -165,12 +172,31 @@ void UPiperComponent::InitializeComponent()
 			//Convert to Wavbytes on bg thread
 			TArray<uint8> WavBytes = PCMToWav(OutputBytes, PiperParams.SampleRate, PiperParams.Channels);
 
+			FString Transcript;
+			TextQueue.Dequeue(Transcript);
+			
+			double InputTime = 0.0;
+			
+			if (InputTimeQueue.Dequeue(InputTime))
+			{
+				double TimeToGenerate = FPlatformTime::Seconds() - InputTime;
+				UE_LOG(LogTemp, Warning, TEXT("TTS latency for '%s' : %f"), *Transcript, TimeToGenerate);
+				//On-screen
+				if (GEngine)
+				{
+					const FString Message = FString::Printf(TEXT("TTS latency for '%s' : %f"), *Transcript, TimeToGenerate);
+					GEngine->AddOnScreenDebugMessage(257,
+						100.f,
+						FColor::Red, 
+						Message, 
+						false);
+				}
+			}
 			//Convert and emit on game thread - todo: optimization of pre-gen soundwave on game thread, then just async convert
 			AsyncTask(ENamedThreads::GameThread, [&, WavBytes]
 			{
 				//Convert to usoundwave
 				USoundWave* Sound = WavToSoundWave(WavBytes);
-
 				OnAudioGenerated.Broadcast(Sound);
 			});
 		}
