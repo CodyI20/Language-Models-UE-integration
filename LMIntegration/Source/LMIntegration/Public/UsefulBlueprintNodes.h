@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Kismet/BlueprintFunctionLibrary.h"
 #include "UsefulBlueprintNodes.generated.h"
 
 /**
@@ -17,4 +16,7 @@ class LMINTEGRATION_API UUsefulBlueprintNodes : public UBlueprintFunctionLibrary
 public:
 	UFUNCTION(BlueprintCallable, Category = "Utilities|PrintString")
 	static void ClearOnScreenDebugMessages();
+	
+	UFUNCTION(BlueprintCallable, Category = "Utilities|ArrayUtils")
+	static bool SaveArrayToFile(const TArray<uint8> ArrayToSave, const FString& FileName);
 };
