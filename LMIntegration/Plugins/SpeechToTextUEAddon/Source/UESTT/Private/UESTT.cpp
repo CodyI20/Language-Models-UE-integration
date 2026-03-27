@@ -77,7 +77,25 @@ bool FSpeechToTextModule::TryLoadBinariesFromPath(const FString& BinariesPath)
 	}
 	
 	FPlatformProcess::AddDllDirectory(*BinariesPath);
-	
+
+	// 1. Explicitly load CUDA dependencies FIRST
+	void* CudartDllHandle = nullptr;
+	void* CublasLtDllHandle = nullptr;
+	void* CublasDllHandle = nullptr;
+
+	if (BinariesPath.Contains("Win64_GPU"))
+	{
+		FString CudartPath = FPaths::Combine(*BinariesPath, TEXT("cudart64_12.dll"));
+		CudartDllHandle = FPlatformProcess::GetDllHandle(*CudartPath);
+		
+		FString CublasLtPath = FPaths::Combine(*BinariesPath, TEXT("cublasLt64_12.dll"));
+		CublasLtDllHandle = FPlatformProcess::GetDllHandle(*CublasLtPath);
+		
+		FString CublasPath = FPaths::Combine(*BinariesPath, TEXT("cublas64_12.dll"));
+		CublasDllHandle = FPlatformProcess::GetDllHandle(*CublasPath);
+	}
+
+	// 2. Load GGML and Whisper
 	FString GgmlDllPath = FPaths::Combine(*BinariesPath, TEXT("ggml.dll"));
 	void* GgmlDllHandle = FPlatformProcess::GetDllHandle(*GgmlDllPath);
 	
@@ -94,27 +112,37 @@ bool FSpeechToTextModule::TryLoadBinariesFromPath(const FString& BinariesPath)
 	{
 		UE_LOG(LogUESTT, Log, TEXT("CUDA GPU acceleration is available from path: %s"), *BinariesPath);
 	} 
-	else 
-	{
-		UE_LOG(LogUESTT, Log, TEXT("CUDA GPU acceleration is NOT available from path: %s"), *BinariesPath);
-	}
 	
 	FString WhisperDllPath = FPaths::Combine(*BinariesPath, TEXT("whisper.dll"));
 	void* WhisperDllHandle = FPlatformProcess::GetDllHandle(*WhisperDllPath);
 	
+	// 3. Store handles for proper memory management
+	if (CudartDllHandle) LoadedDllHandles.Add(CudartDllHandle);
+	if (CublasLtDllHandle) LoadedDllHandles.Add(CublasLtDllHandle);
+	if (CublasDllHandle) LoadedDllHandles.Add(CublasDllHandle);
 	if (GgmlDllHandle) LoadedDllHandles.Add(GgmlDllHandle);
 	if (GgmlBaseDllHandle) LoadedDllHandles.Add(GgmlBaseDllHandle);
 	if (GgmlCpuDllHandle) LoadedDllHandles.Add(GgmlCpuDllHandle);
 	if (GgmlCudaDllHandle) LoadedDllHandles.Add(GgmlCudaDllHandle);
 	if (WhisperDllHandle) LoadedDllHandles.Add(WhisperDllHandle);
 	
-	bool bSuccess = (WhisperDllHandle != nullptr && GgmlDllHandle != nullptr && 
-					GgmlBaseDllHandle != nullptr && GgmlCpuDllHandle != nullptr);
+	bool bSuccess = false;
+	if (BinariesPath.Contains("Win64_GPU"))
+	{
+		// Require CUDA DLLs to succeed
+		bSuccess = (WhisperDllHandle && GgmlDllHandle && GgmlBaseDllHandle && 
+					GgmlCpuDllHandle && GgmlCudaDllHandle && 
+					CudartDllHandle && CublasLtDllHandle && CublasDllHandle);
+	}
+	else
+	{
+		bSuccess = (WhisperDllHandle && GgmlDllHandle && GgmlBaseDllHandle && 
+					GgmlCpuDllHandle);
+	}
 	
 	if (!bSuccess)
 	{
 	    UE_LOG(LogUESTT, Warning, TEXT("Failed to load required DLLs from path: %s"), *BinariesPath);
-	    UE_LOG(LogUESTT, Warning, TEXT("If this is a fresh machine, install 'Microsoft Visual C++ Redistributable for Visual Studio 2015-2022 (x64)'."));
 	}
 	
 	return bSuccess;

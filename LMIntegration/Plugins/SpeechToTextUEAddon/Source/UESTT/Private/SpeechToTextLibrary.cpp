@@ -14,6 +14,23 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogTranscription, Log, All);
 
+static void WhisperLogCallback(ggml_log_level level, const char * text, void * user_data)
+{
+    if (!text) return;
+    FString LogText = UTF8_TO_TCHAR(text);
+    LogText.TrimStartAndEndInline();
+    
+    if (LogText.IsEmpty()) return;
+    
+    if (level == GGML_LOG_LEVEL_ERROR) {
+        UE_LOG(LogTranscription, Error, TEXT("WHISPER: %s"), *LogText);
+    } else if (level == GGML_LOG_LEVEL_WARN) {
+        UE_LOG(LogTranscription, Warning, TEXT("WHISPER: %s"), *LogText);
+    } else {
+        UE_LOG(LogTranscription, Log, TEXT("WHISPER: %s"), *LogText);
+    }
+}
+
 // Global lock for whisper context operations
 // Note: whisper.cpp context creation is not thread-safe, and while whisper_full() processing
 // may be internally thread-safe per context, we use this lock conservatively during initialization.
@@ -161,45 +178,19 @@ TArray<float> ResampleAudio(const TArray<float>& InputSamples, int SourceSampleR
     return ResampledPCM;
 }
 
-class FTranscriptionTask : public FNonAbandonableTask
+void USpeechToTextLibrary::TranscribeAudioFileAsync(const FString& AudioFilePath, FTranscriptionConfig Config, const FOnTranscriptionCompleted& CompletionCallback)
 {
-public:
-    FTranscriptionTask(const FString& InAudioFilePath, const FTranscriptionConfig& InConfig, const FOnTranscriptionCompleted& InCompletionCallback)
-        : AudioFilePath(InAudioFilePath), CompletionCallback(InCompletionCallback), Config(InConfig)
-    {
-    }
-
-    static TStatId GetStatId();
-
-    void DoWork() const
+    // Execute on a dedicated background thread instead of the thread pool to avoid cuBLAS stack overflows
+    Async(EAsyncExecution::Thread, [AudioFilePath, Config, CompletionCallback]()
     {
         FTranscriptionResult Result = USpeechToTextLibrary::TranscribeAudioInternal(AudioFilePath, Config);
         
-        // C++14 Init-capture + MoveTemp
-        FFunctionGraphTask::CreateAndDispatchWhenReady(
-            [Callback = CompletionCallback, FinalResult = MoveTemp(Result)]()
-            {
-                // ExecuteIfBound safely checks if the calling BP / Actor still exists before it fires
-               Callback.ExecuteIfBound(FinalResult); 
-            },
-            TStatId(), nullptr, ENamedThreads::GameThread
-            );
-    }
-
-private:
-    FString AudioFilePath;
-    FOnTranscriptionCompleted CompletionCallback;
-    FTranscriptionConfig Config;
-};
-
-TStatId FTranscriptionTask::GetStatId()
-{
-    RETURN_QUICK_DECLARE_CYCLE_STAT(FTranscriptionTask, STATGROUP_ThreadPoolAsyncTasks);
-}
-
-void USpeechToTextLibrary::TranscribeAudioFileAsync(const FString& AudioFilePath, FTranscriptionConfig Config, const FOnTranscriptionCompleted& CompletionCallback)
-{
-    (new FAutoDeleteAsyncTask<FTranscriptionTask>(AudioFilePath, Config, CompletionCallback))->StartBackgroundTask();
+        // Return the result to the Game Thread
+        AsyncTask(ENamedThreads::GameThread, [Callback = CompletionCallback, FinalResult = MoveTemp(Result)]()
+        {
+            Callback.ExecuteIfBound(FinalResult);
+        });
+    });
 }
 
 FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString& AudioFilePath, const FTranscriptionConfig& Config)
@@ -343,7 +334,8 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
                 UE_LOG(LogTranscription, Log, TEXT("Transcribing audio using CPU only (GPU acceleration disabled)"));
             }
         }
-        
+        // Captures all internal whisper/ggml errors
+        whisper_log_set(WhisperLogCallback,nullptr);
         ctx = whisper_init_from_file_with_params(TCHAR_TO_UTF8(*ModelDir), Cparams);
         
         if (ctx == nullptr) {
@@ -366,6 +358,9 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     params.thold_pt = Config.SegmentSensitivity;
     params.max_tokens = 0;
     
+    // Declare the conversion object OUTSIDE the if-statement so it stays in scope
+    FTCHARToUTF8 ConvertedLanguage(*Config.Language);
+    
     if (!Config.Language.IsEmpty())
     {
         // Validate language code is reasonable (2-3 characters or "auto")
@@ -375,7 +370,9 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
             Result.ErrorMessage = FString::Printf(TEXT("Invalid language code: %s. Expected 2-3 character code (e.g., 'en', 'es', 'fr') or 'auto'."), *Config.Language);
             return Result;
         }
-        params.language = TCHAR_TO_UTF8(*Config.Language);
+        
+        // Safely grab the pointer from our long-lived object
+        params.language = ConvertedLanguage.Get(); 
     }
     else
     {
