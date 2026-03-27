@@ -52,7 +52,7 @@ public class UESTT : ModuleRules
              
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
-            // Existing GGML & Whisper dependencies
+            // GGML & Whisper dependencies for the GPU
             RuntimeDependencies.Add("$(PluginDir)/Source/ThirdParty/whisper/bin/Win64_GPU/whisper.dll", StagedFileType.NonUFS);
             RuntimeDependencies.Add("$(PluginDir)/Source/ThirdParty/whisper/bin/Win64_GPU/ggml.dll", StagedFileType.NonUFS);
             RuntimeDependencies.Add("$(PluginDir)/Source/ThirdParty/whisper/bin/Win64_GPU/ggml-base.dll", StagedFileType.NonUFS);

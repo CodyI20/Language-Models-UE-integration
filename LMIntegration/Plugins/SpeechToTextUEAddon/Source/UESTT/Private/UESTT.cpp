@@ -78,7 +78,7 @@ bool FSpeechToTextModule::TryLoadBinariesFromPath(const FString& BinariesPath)
 	
 	FPlatformProcess::AddDllDirectory(*BinariesPath);
 
-	// 1. Explicitly load CUDA dependencies FIRST
+	// Explicitly load CUDA dependencies FIRST
 	void* CudartDllHandle = nullptr;
 	void* CublasLtDllHandle = nullptr;
 	void* CublasDllHandle = nullptr;
@@ -95,7 +95,7 @@ bool FSpeechToTextModule::TryLoadBinariesFromPath(const FString& BinariesPath)
 		CublasDllHandle = FPlatformProcess::GetDllHandle(*CublasPath);
 	}
 
-	// 2. Load GGML and Whisper
+	// Load GGML and Whisper
 	FString GgmlDllPath = FPaths::Combine(*BinariesPath, TEXT("ggml.dll"));
 	void* GgmlDllHandle = FPlatformProcess::GetDllHandle(*GgmlDllPath);
 	
@@ -116,7 +116,7 @@ bool FSpeechToTextModule::TryLoadBinariesFromPath(const FString& BinariesPath)
 	FString WhisperDllPath = FPaths::Combine(*BinariesPath, TEXT("whisper.dll"));
 	void* WhisperDllHandle = FPlatformProcess::GetDllHandle(*WhisperDllPath);
 	
-	// 3. Store handles for proper memory management
+	// Store handles for proper memory management
 	if (CudartDllHandle) LoadedDllHandles.Add(CudartDllHandle);
 	if (CublasLtDllHandle) LoadedDllHandles.Add(CublasLtDllHandle);
 	if (CublasDllHandle) LoadedDllHandles.Add(CublasDllHandle);
