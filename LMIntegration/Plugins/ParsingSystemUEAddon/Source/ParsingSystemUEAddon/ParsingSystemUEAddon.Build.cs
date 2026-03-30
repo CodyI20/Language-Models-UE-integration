@@ -30,6 +30,9 @@ public class ParsingSystemUEAddon : ModuleRules
 			PublicAdditionalLibraries.Add(Path.Combine(TokenizerPath, "lib/Win64", "tokenizers_cpp.lib"));
 			PublicAdditionalLibraries.Add(Path.Combine(TokenizerPath, "lib/Win64", "tokenizers_c.lib"));
 			PublicAdditionalLibraries.Add(Path.Combine(TokenizerPath, "lib/Win64", "sentencepiece.lib"));
+			
+			// Ensures the Content folder is available in the packaged build
+			RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Content", "*"), StagedFileType.NonUFS);
 		}
 		
 		// REQUIRED FOR RUST

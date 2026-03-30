@@ -69,6 +69,9 @@ public class UESTT : ModuleRules
             RuntimeDependencies.Add("$(PluginDir)/Source/ThirdParty/whisper/bin/Win64_CPU/ggml.dll", StagedFileType.NonUFS);
             RuntimeDependencies.Add("$(PluginDir)/Source/ThirdParty/whisper/bin/Win64_CPU/ggml-base.dll", StagedFileType.NonUFS);
             RuntimeDependencies.Add("$(PluginDir)/Source/ThirdParty/whisper/bin/Win64_CPU/ggml-cpu.dll", StagedFileType.NonUFS);
+            
+            // Ensures the Content folder is available in the packaged build
+            RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Content", "*"), StagedFileType.NonUFS);
         }
 
         PublicDependencyModuleNames.AddRange(new string[] {
