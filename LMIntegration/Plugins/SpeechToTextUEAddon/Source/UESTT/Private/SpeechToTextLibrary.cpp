@@ -5,6 +5,7 @@
 #include "Misc/Paths.h"
 #include "Interfaces/IPluginManager.h"
 #include "HAL/PlatformProcess.h"
+#include "Async/Async.h"
 #include "Async/AsyncWork.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "UESTT.h"

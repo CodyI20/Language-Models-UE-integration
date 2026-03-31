@@ -28,13 +28,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "SpeechToText")
 	FString RecordingName;
 	
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category = "SpeechToText")
 	TObjectPtr<UAudioCaptureComponent> AudioCapture;
 	
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "SpeechToText")
 	TObjectPtr<USoundSubmix> SoundSubmix;
 	
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category = "SpeechToText")
 	FString AudioFilePath;
 	
 	UFUNCTION(BlueprintCallable, Category = "SpeechToText")

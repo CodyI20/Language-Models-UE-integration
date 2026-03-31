@@ -8,7 +8,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
-#include "Interfaces/IPluginManager.h"
+#include "HAL/PlatformFileManager.h"
+#include "Engine/World.h"
+#include "Engine/LocalPlayer.h"
 
 
 USpeechToTextComponent::USpeechToTextComponent()

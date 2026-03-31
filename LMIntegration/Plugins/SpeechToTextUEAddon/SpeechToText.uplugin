@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.0",
+	"VersionName": "2.0",
 	"FriendlyName": "Speech to Text",
 	"Description": "Speech to text transcription powered by Whisper AI.",
 	"Category": "Audio",
