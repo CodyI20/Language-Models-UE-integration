@@ -6,7 +6,9 @@ Build a fully local Unreal Engine pipeline where user's speech is transcribed, i
 
 ## Core constraints from planning
 
-- Unreal Engine target: 5.6.x. (Note: Does NOT work on Unreal Engine < 5.3 and it only MIGHT work on Unreal Engine 5.3-5.5)
+- Unreal Engine target: 5.6.x.
+
+  Note: Unreal Engine versions earlier than 5.3 are unsupported. Versions 5.3 through 5.5 are not the target for this project and have not been confirmed as supported.
 - Local-first processing prioritized (offline operation and reduced operational cost).
 - VR-oriented performance expectations drove strict latency constraints.
 - Avoid large-model overhead when possible; move toward compact, task-specific models.
