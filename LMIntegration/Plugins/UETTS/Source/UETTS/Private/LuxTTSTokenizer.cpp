@@ -49,6 +49,11 @@ bool FLuxTTSTokenizer::LoadVocabulary()
 		}
 	}
 
+	if (const int32* Found = VocabMap.Find(TEXT("^"))) BosTokenId = *Found;
+	if (const int32* Found = VocabMap.Find(TEXT("$"))) EosTokenId = *Found;
+	if (const int32* Found = VocabMap.Find(TEXT(" "))) SpaceTokenId = *Found;
+	if (const int32* Found = VocabMap.Find(TEXT("_"))) UnknownTokenId = *Found;
+
 	UE_LOG(LogTextToSpeech, Log, TEXT("Successfully loaded %d tokens into vocabulary."), VocabMap.Num());
 	return true;
 }
@@ -57,8 +62,14 @@ TArray<int32> FLuxTTSTokenizer::TokenizeText(const FString& InputText)
 {
 	TArray<int32> Tokens;
 	FString LowerText = InputText.ToLower();
+	Tokens.Reserve(LowerText.Len() + 2);
 
-	// Basic Character-level mapping for our first iteration
+	if (BosTokenId != INDEX_NONE)
+	{
+		Tokens.Add(BosTokenId);
+	}
+
+	// Character-level mapping with explicit BOS/EOS and UNK handling.
 	for (int32 i = 0; i < LowerText.Len(); ++i)
 	{
 		FString CharStr = LowerText.Mid(i, 1);
@@ -69,9 +80,20 @@ TArray<int32> FLuxTTSTokenizer::TokenizeText(const FString& InputText)
 		}
 		else
 		{
-			// If no recognized character, use the space token (ID 3 based on the txt file)
-			Tokens.Add(3); 
+			if (CharStr == TEXT("\n") || CharStr == TEXT("\r") || CharStr == TEXT("\t"))
+			{
+				Tokens.Add(SpaceTokenId != INDEX_NONE ? SpaceTokenId : 3);
+			}
+			else
+			{
+				Tokens.Add(UnknownTokenId != INDEX_NONE ? UnknownTokenId : (SpaceTokenId != INDEX_NONE ? SpaceTokenId : 3));
+			}
 		}
+	}
+
+	if (EosTokenId != INDEX_NONE)
+	{
+		Tokens.Add(EosTokenId);
 	}
 
 	return Tokens;

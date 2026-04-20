@@ -19,4 +19,9 @@ public:
 private:
 	// A map to store the Token-to-ID relationship
 	TMap<FString, int32> VocabMap;
+
+	int32 BosTokenId = INDEX_NONE;
+	int32 EosTokenId = INDEX_NONE;
+	int32 SpaceTokenId = INDEX_NONE;
+	int32 UnknownTokenId = INDEX_NONE;
 };

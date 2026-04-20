@@ -15,9 +15,9 @@ public:
 	bool InitializeModels();
 	
 	// Feeds the tokenized text to the AI and retrieves the features
-	bool RunTextEncoder(const TArray<int32>& Tokens, float SpeechSpeed, TArray<float>& OutTextFeatures) const;
+	bool RunTextEncoder(const TArray<int32>& Tokens, float SpeechSpeed, TArray<float>& OutTextFeatures, const TArray<int32>* PromptTokens = nullptr) const;
 	
-	bool RunFMDecoder(const TArray<float>& TextFeatures, TArray<float>& OutAcousticFeatures) const;
+	bool RunFMDecoder(const TArray<float>& TextFeatures, TArray<float>& OutAcousticFeatures, const TArray<float>* PromptAcousticFeatures = nullptr) const;
 	
 	bool RunVocoder(const TArray<float>& AcousticFeatures, int32 AudioSeqLen, TArray<float>& OutAudioSamples) const;
 

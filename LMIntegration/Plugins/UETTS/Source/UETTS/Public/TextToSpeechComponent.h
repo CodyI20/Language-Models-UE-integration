@@ -21,6 +21,18 @@ struct FLuxTTSConfig
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TTS Configuration")
 	float VolumeMultiplier = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TTS Configuration|Reference Voice")
+	bool bUseReferenceVoice = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TTS Configuration|Reference Voice")
+	FString ReferenceVoiceWavPath;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TTS Configuration|Reference Voice")
+	FString ReferenceTranscript;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TTS Configuration|Reference Voice", meta = (ClampMin = "0.5", ClampMax = "30.0"))
+	float MaxReferenceSeconds = 3.0f;
 };
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
