@@ -28,7 +28,7 @@ Command interpretation through general-purpose LLM runtime calls added avoidable
 
 - Typo tolerance was not treated as a target requirement for this path because live STT output is the primary input source.
 - Hardcoded content/data-table assumptions were identified during migration and flagged for cleanup.
-- The alias-matching logic is currently extremely strict, and may result in unwanted behavior when not following closely
+- The alias-matching logic is currently extremely strict, and inputs must closely match the exact command phrasing or known aliases in the data table; otherwise, commands may be missed or mapped to the wrong intent.
 
 ## Net result
 
