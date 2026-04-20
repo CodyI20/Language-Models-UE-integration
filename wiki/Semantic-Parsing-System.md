@@ -2,7 +2,7 @@
 
 ## Why this system was introduced
 
-Command interpretation through general-purpose LLM runtime calls added avoidable latency and overhead. The parsing subsystem was introduced to perform fast semantic matching of user text to known command intents.
+Command interpretation through general-purpose LLM runtime calls added avoidable latency and overhead. The parsing subsystem was introduced to perform fast semantic matching of user text to known command intents. The switch allowed for near-instant execution time.
 
 ## Model and runtime strategy
 
@@ -28,6 +28,7 @@ Command interpretation through general-purpose LLM runtime calls added avoidable
 
 - Typo tolerance was not treated as a target requirement for this path because live STT output is the primary input source.
 - Hardcoded content/data-table assumptions were identified during migration and flagged for cleanup.
+- The alias-matching logic is currently extremely strict, and may result in unwanted behavior when not following closely
 
 ## Net result
 
