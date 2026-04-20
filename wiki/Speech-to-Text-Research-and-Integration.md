@@ -11,7 +11,7 @@
 - Local Whisper path has strong control and privacy benefits but requires significant setup effort (model/runtime/libraries/build integration).
 - Streaming STT was investigated to reduce latency, but reliability and microphone capture consistency were recurring blockers.
 - Packaging introduced additional path/dependency issues that did not appear during editor-only runs.
-- CUDA/GPU acceleration was explored and succesfully implemented
+- CUDA/GPU acceleration was explored and successfully implemented.
 
 ## Performance notes
 
