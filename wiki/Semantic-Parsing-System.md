@@ -33,3 +33,134 @@ Command interpretation through general-purpose LLM runtime calls added avoidable
 ## Net result
 
 This subsystem became a key performance-oriented architectural decision: narrower model scope, lower overhead, and cleaner plugin-level reuse compared to generic prompt-response command routing.
+
+---
+
+## Why the simple string parser was rejected first
+
+The first idea was a plain keyword hashmap: each word in the transcription would be compared against a map of trigger strings (e.g., `"ground"` → `ACTION_ONTHEGROUND`). This was discarded for three reasons:
+
+1. It would fail entirely if the speech-to-text misinterpreted a word.
+2. Paraphrases (e.g., "Get down now!" vs "Get on the ground!") would need to be manually added for each possible phrasing, making maintenance unsustainable.
+3. It was error-prone and unprofessional; any missing entry silently produced no output.
+
+## Why a sentence-transformer reranker was chosen
+
+A "reranker" model calculates similarity scores between an input sentence and a set of candidate sentences, bypassing the need for literal string equality. The SBERT (sentence-transformers) model family tokenizes input and maps sentences into a dense 384-dimensional vector space. This allows the parser to detect semantic meaning rather than exact word matches.
+
+The model chosen is `all-MiniLM-L6-v2` from Xenova on HuggingFace (a 22.7M parameter model, quantized, originally trained by Microsoft). It maps sentences to a 384-dimensional dense vector space and is optimized for semantic searching and similarity matching. It is many times smaller than even the smallest Ollama models (1B+).
+
+## NNE plugin requirements
+
+Three Unreal Engine plugins must be enabled in the project (Edit > Plugins, search "Neural Network Engine"):
+
+- `NNEDenoiser`
+- `NNERuntimeCoreML`
+- `NNERuntimeORT`
+
+These are in Beta/Experimental state in UE 5.6.1 but operate reliably for this use case.
+
+## Required files from HuggingFace (Xenova/all-MiniLM-L6-v2)
+
+From the "Files and versions" tab on HuggingFace:
+
+- `vocab.txt`
+- `tokenizer.json`
+- `onnx/model.onnx`
+
+These files must be placed via the filesystem into a folder named `NLP_Data` inside the plugin or project Content folder. Dragging and dropping into the UE Editor will fail with a compatibility error. The folder will appear empty in the UE Editor even though the files are present.
+
+## Building tokenizers-cpp (third-party dependency)
+
+The all-MiniLM-L6-v2 model requires tokenization before inference. The open-source `tokenizers-cpp` library handles this. Build steps:
+
+1. Clone: `git clone https://github.com/mlc-ai/tokenizers-cpp`
+2. Install the Rust toolchain (required for the build)
+3. Inside the cloned folder:
+   ```
+   git submodule update --init --recursive
+   mkdir build
+   cd build
+   cmake .. -DCMAKE_BUILD_TYPE=Release
+   cmake --build . --config Release
+   ```
+4. Copy `tokenizers_c.h` and `tokenizers_cpp.h` from the build output into the plugin's `ThirdParty/TokenizersCPP/include` folder
+5. Copy `sentencepiece.lib`, `tokenizers_c.lib`, and `tokenizers_cpp.lib` into `ThirdParty/TokenizersCPP/lib/Win64`
+
+## Build.cs configuration
+
+The `ParsingSystemUEAddon.Build.cs` module includes:
+
+- Public dependency: `NNE`
+- Include path: `ThirdParty/TokenizersCPP/include`
+- Static libraries (Win64 only): `tokenizers_cpp.lib`, `tokenizers_c.lib`, `sentencepiece.lib`
+- System libraries required by the Rust runtime: `Bcrypt.lib`, `Userenv.lib`, `ws2_32.lib`, `ntdll.lib`
+
+## C++ class structure
+
+The core C++ class is a `GameInstanceSubsystem` named `SemanticParser` (or similar). It:
+
+1. Loads and initializes the tokenizer from the `tokenizer.json` file in `NLP_Data`
+2. Loads the ONNX model via `UNNEModelData`
+3. Caches embeddings of command aliases from a Data Table (rows of type `CommandAliasRow`)
+4. Exposes `AsyncGetBestMatchingCommand` which runs on a background thread and calls back with the best-matching `ENPCAnimationID` enum value and a confidence score
+
+## The void* cast issue and fix
+
+A subtle bug was encountered when passing tensor data to NNE's `RunSync` API. Unreal Engine's NNE API expects `void*` for `InputBindings[i].Data`. The fix was:
+
+```cpp
+InputBindings[i].Data = static_cast<void*>(CleanInputIDs.GetData());
+InputBindings[i].SizeInBytes = CleanInputIDs.Num() * sizeof(int64);
+InputShapes[i] = UE::NNE::FTensorShape::Make({ 1, static_cast<uint32>(CleanInputIDs.Num()) });
+```
+
+Implicit conversion to `void*` did not compile and a C-style cast produced a Rider warning. The `static_cast<void*>` combined with `static_cast<uint32>` on the shape resolved both the linker error and the warning.
+
+## Enum-based command output (refactor)
+
+Before the refactor, command results were FStrings. This caused:
+
+1. Silent bugs from typos in string comparisons
+2. Cumbersome codebase as every blueprint and C++ file needed exact matching strings
+3. Poor developer experience for anyone new to the project
+
+The `ENPCAnimationID` enum was introduced to hold all supported NPC commands. Each enum element has a human-readable name visible in the UE Editor. Renaming an enum entry propagates automatically through the codebase.
+
+## Data Table setup
+
+A Data Table with row type `CommandAliasRow` is created inside the project. Each row contains:
+
+- A command ID (maps to the `ENPCAnimationID` enum)
+- One or more alias strings (the natural-language phrases that should match this command)
+
+The system caches the embeddings of these aliases at startup via `Cache Command Embeddings from Data Table`. In Blueprints, the Data Table is assigned by dragging it from the Content Browser onto the `CommandTable` pin.
+
+## Blueprint integration guide
+
+On `BeginPlay` of the character blueprint:
+
+1. Call `Initialize Tokenizer`
+2. Call `Initialize Model` (with the `all-MiniLM-L6-v2-onnx` asset selected for `In Model Data`)
+3. Call `Cache Command Embeddings from Data Table` (with the Data Table assigned)
+
+To trigger parsing:
+
+1. Connect the Whisper transcription output (or a text input widget for testing) to `Async Get Best Matching Command`
+2. Set the Semantic Parser subsystem reference and a confidence threshold
+3. Connect the returned enum value to the animation or dialogue system
+
+## Plugin migration (Issue #24)
+
+The parsing system was migrated from the main project into the `ParsingSystemUEAddon` plugin in commits from `fa72b2e` through `0e834fa` (10–11 March 2026). Issue #24 required:
+
+1. All C++ code moved into the plugin
+2. All ThirdParty files (`.lib` and `.h` from tokenizers-cpp) included
+3. All UE assets (Data Table, ONNX model) bundled inside plugin Content
+4. `.cs` and `.uplugin` updated to declare NNE dependencies
+
+After completion, the plugin was tested in a separate blank C++ UE project and confirmed fully plug-and-play. Removing it from the main project's `PublicDependencyModuleNames` no longer caused build errors.
+
+## Packaging fix for parsing system (Issue #32)
+
+In packaged builds, the `NLP_Data` folder inside the plugin Content was not reachable. This caused the embedding cache to be empty, making the entire system fail silently. The fix was a `FilterPlugin.ini` file added to the plugin's Config folder, directing UE to include the plugin's Content directory in packaged outputs. This is resolved in commit `301d529`.
