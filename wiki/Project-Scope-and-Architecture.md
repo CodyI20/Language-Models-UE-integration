@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build a fully local Unreal Engine pipeline where user's speech is transcribed, interpreted, and translated into NPC behavior/dialogue with optional text-to-speech playback.
+Build a fully local Unreal Engine pipeline where the user's speech is transcribed, interpreted, and translated into NPC behavior/dialogue with optional text-to-speech playback.
 
 ## Core constraints from planning
 
