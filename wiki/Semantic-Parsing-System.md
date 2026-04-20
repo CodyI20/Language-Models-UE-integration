@@ -34,13 +34,11 @@ Command interpretation through general-purpose LLM runtime calls added avoidable
 
 This subsystem became a key performance-oriented architectural decision: narrower model scope, lower overhead, and cleaner plugin-level reuse compared to generic prompt-response command routing.
 
----
-
 ## Why the simple string parser was rejected first
 
-The first idea was a plain keyword hashmap: each word in the transcription would be compared against a map of trigger strings (e.g., `"ground"` → `ACTION_ONTHEGROUND`). This was discarded for three reasons:
+The first idea was a plain keyword hashmap: each word in the transcription would be compared against a map of trigger strings (e.g., `"ground"` → `ACTION_ONTHEGROUND`). This was discarded for three assumed reasons:
 
-1. It would fail entirely if the speech-to-text misinterpreted a word.
+1. Without a proper implementation, it would fail entirely if the speech-to-text misinterpreted a word.
 2. Paraphrases (e.g., "Get down now!" vs "Get on the ground!") would need to be manually added for each possible phrasing, making maintenance unsustainable.
 3. It was error-prone and unprofessional; any missing entry silently produced no output.
 
@@ -48,7 +46,7 @@ The first idea was a plain keyword hashmap: each word in the transcription would
 
 A "reranker" model calculates similarity scores between an input sentence and a set of candidate sentences, bypassing the need for literal string equality. The SBERT (sentence-transformers) model family tokenizes input and maps sentences into a dense 384-dimensional vector space. This allows the parser to detect semantic meaning rather than exact word matches.
 
-The model chosen is `all-MiniLM-L6-v2` from Xenova on HuggingFace (a 22.7M parameter model, quantized, originally trained by Microsoft). It maps sentences to a 384-dimensional dense vector space and is optimized for semantic searching and similarity matching. It is many times smaller than even the smallest Ollama models (1B+).
+The model chosen is `all-MiniLM-L6-v2` from Xenova on HuggingFace (a 22.7M parameter model, quantized, originally trained by Microsoft). It maps sentences to a 384-dimensional dense vector space and is optimized for semantic searching and similarity matching. It is many times smaller than even the smallest Ollama models usable in this context (1B+).
 
 ## NNE plugin requirements
 
@@ -68,7 +66,7 @@ From the "Files and versions" tab on HuggingFace:
 - `tokenizer.json`
 - `onnx/model.onnx`
 
-These files must be placed via the filesystem into a folder named `NLP_Data` inside the plugin or project Content folder. Dragging and dropping into the UE Editor will fail with a compatibility error. The folder will appear empty in the UE Editor even though the files are present.
+These files must be placed via the filesystem into a folder named `NLP_Data` inside the plugin or project Content folder. Dragging and dropping into the UE Editor will fail due to a compatibility error. Note: The folder will appear empty in the UE Editor even though the files are present.
 
 ## Building tokenizers-cpp (third-party dependency)
 
@@ -98,24 +96,12 @@ The `ParsingSystemUEAddon.Build.cs` module includes:
 
 ## C++ class structure
 
-The core C++ class is a `GameInstanceSubsystem` named `SemanticParser` (or similar). It:
+The core C++ class is a `GameInstanceSubsystem` named `SemanticParser`. It:
 
 1. Loads and initializes the tokenizer from the `tokenizer.json` file in `NLP_Data`
 2. Loads the ONNX model via `UNNEModelData`
-3. Caches embeddings of command aliases from a Data Table (rows of type `CommandAliasRow`)
+3. Caches embeddings of command aliases from a Data Table (rows of type `CommandAliasRow`, inherited from `FTableRowBase`)
 4. Exposes `AsyncGetBestMatchingCommand` which runs on a background thread and calls back with the best-matching `ENPCAnimationID` enum value and a confidence score
-
-## The void* cast issue and fix
-
-A subtle bug was encountered when passing tensor data to NNE's `RunSync` API. Unreal Engine's NNE API expects `void*` for `InputBindings[i].Data`. The fix was:
-
-```cpp
-InputBindings[i].Data = static_cast<void*>(CleanInputIDs.GetData());
-InputBindings[i].SizeInBytes = CleanInputIDs.Num() * sizeof(int64);
-InputShapes[i] = UE::NNE::FTensorShape::Make({ 1, static_cast<uint32>(CleanInputIDs.Num()) });
-```
-
-Implicit conversion to `void*` did not compile and a C-style cast produced a Rider warning. The `static_cast<void*>` combined with `static_cast<uint32>` on the shape resolved both the linker error and the warning.
 
 ## Enum-based command output (refactor)
 
@@ -148,19 +134,23 @@ To trigger parsing:
 
 1. Connect the Whisper transcription output (or a text input widget for testing) to `Async Get Best Matching Command`
 2. Set the Semantic Parser subsystem reference and a confidence threshold
-3. Connect the returned enum value to the animation or dialogue system
+3. Connect the returned enum value to the animation and/or dialogue system
 
-## Plugin migration (Issue #24)
+## Plugin migration
 
-The parsing system was migrated from the main project into the `ParsingSystemUEAddon` plugin in commits from `fa72b2e` through `0e834fa` (10–11 March 2026). Issue #24 required:
+The parsing system was migrated from the main project into the `ParsingSystemUEAddon` plugin:
 
 1. All C++ code moved into the plugin
 2. All ThirdParty files (`.lib` and `.h` from tokenizers-cpp) included
 3. All UE assets (Data Table, ONNX model) bundled inside plugin Content
 4. `.cs` and `.uplugin` updated to declare NNE dependencies
 
-After completion, the plugin was tested in a separate blank C++ UE project and confirmed fully plug-and-play. Removing it from the main project's `PublicDependencyModuleNames` no longer caused build errors.
+After completion, the plugin was tested in a separate blank C++ UE project and confirmed it was fully plug-and-play. Removing it from the main project's `PublicDependencyModuleNames` no longer caused build errors.
 
-## Packaging fix for parsing system (Issue #32)
+## Packaging fix for parsing system
 
-In packaged builds, the `NLP_Data` folder inside the plugin Content was not reachable. This caused the embedding cache to be empty, making the entire system fail silently. The fix was a `FilterPlugin.ini` file added to the plugin's Config folder, directing UE to include the plugin's Content directory in packaged outputs. This is resolved in commit `301d529`.
+In packaged builds, the `NLP_Data` folder inside the plugin Content was not reachable. This caused the embedding cache to be empty, making the entire system fail silently. The fix was:
+1. Inside the .Build.cs files I added the contents of the "Content" folders to the runtime dependencies as NonUFS staged file type. <img width="643" height="48" alt="image" src="https://github.com/user-attachments/assets/03b8b184-06cc-4da4-a5a0-50a7edb8b418" />
+
+3. Headed to the packaging settings inside the Project Settings tab and added the "Content" folder of each plugin to the "DirectoriesToAlwaysCook" list. <img width="473" height="36" alt="image" src="https://github.com/user-attachments/assets/27305d84-bb05-47ca-af44-83da3dd61c45" />
+
