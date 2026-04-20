@@ -6,5 +6,5 @@
 4. [Speech-to-Text](Speech-to-Text-Research-and-Integration)
 5. [Semantic Parsing System (ONNX + NNE)](Semantic-Parsing-System)
 6. [Text-to-Speech](Text-to-Speech-Research-and-Integration)
-8. [Recommendations](Recommendations)
-9. [Conclusion](Conclusion)
+7. [Recommendations](Recommendations)
+8. [Conclusion](Conclusion)
