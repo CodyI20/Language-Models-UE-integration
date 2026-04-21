@@ -1,0 +1,11 @@
+﻿Name,InputText,ExpectedCommand,bShouldMatch
+Ground_GetDown,get down,ACTION_GROUND,true
+Ground_Down,down,ACTION_GROUND,true
+Ground_Noise,move the chair,ACTION_GROUND,false
+HandsUp_Exact,hands up,ACTION_HANDS_UP,true
+HandsUp_Synonym,hands in the air,ACTION_HANDS_UP,true
+HandsUp_Noise,pen in the air,ACTION_HANDS_UP,false
+HandsBack_Exact,hands back,ACTION_HANDS_BACK,true
+HandsBack_Synonym,put your hands behind your back,ACTION_HANDS_BACK,true
+HandsBack_Noise,hands in the air again,ACTION_HANDS_BACK,false
+

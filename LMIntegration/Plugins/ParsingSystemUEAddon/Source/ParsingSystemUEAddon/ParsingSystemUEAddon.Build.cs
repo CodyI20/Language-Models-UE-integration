@@ -1,35 +1,39 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+// ReSharper disable All
 
 using System.IO;
 using UnrealBuildTool;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Unreal module rules class name follows the module name convention")]
 public class ParsingSystemUEAddon : ModuleRules
 {
-	public ParsingSystemUEAddon(ReadOnlyTargetRules Target) : base(Target)
+	public ParsingSystemUEAddon(ReadOnlyTargetRules target) : base(target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
 		PublicDependencyModuleNames.AddRange(
-			new string[]
+			new[]
 			{
 				"Core",
 				"CoreUObject",
 				"Engine",
 				"InputCore",
-				"NNE"
+				"NNE",
+				"Json",
+				"JsonUtilities"
 			}
 			);
 		
-		string ThirdPartyPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "ThirdParty"));
-		string TokenizerPath = Path.Combine(ThirdPartyPath, "TokenizersCPP");
+		string thirdPartyPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "ThirdParty"));
+		string tokenizerPath = Path.Combine(thirdPartyPath, "TokenizersCPP");
 		
-		PublicIncludePaths.Add(Path.Combine(TokenizerPath, "include"));
+		PublicIncludePaths.Add(Path.Combine(tokenizerPath, "include"));
 		
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+		if (target.Platform == UnrealTargetPlatform.Win64)
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(TokenizerPath, "lib/Win64", "tokenizers_cpp.lib"));
-			PublicAdditionalLibraries.Add(Path.Combine(TokenizerPath, "lib/Win64", "tokenizers_c.lib"));
-			PublicAdditionalLibraries.Add(Path.Combine(TokenizerPath, "lib/Win64", "sentencepiece.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(tokenizerPath, "lib/Win64", "tokenizers_cpp.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(tokenizerPath, "lib/Win64", "tokenizers_c.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(tokenizerPath, "lib/Win64", "sentencepiece.lib"));
 			
 			// Ensures the Content folder is available in the packaged build
 			RuntimeDependencies.Add(Path.Combine(PluginDirectory, "Content", "*"), StagedFileType.NonUFS);
@@ -58,7 +62,7 @@ public class ParsingSystemUEAddon : ModuleRules
 			
 		
 		PrivateDependencyModuleNames.AddRange(
-			new string[]
+			new[]
 			{
 				"CoreUObject",
 				"Engine",
@@ -78,3 +82,6 @@ public class ParsingSystemUEAddon : ModuleRules
 			);
 	}
 }
+
+// ReSharper restore All
+
