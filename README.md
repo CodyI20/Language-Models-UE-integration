@@ -63,7 +63,6 @@ The project is composed of loosely coupled Unreal Engine plugins. Each is an ind
 | Known Limitations | Limitation	Detail |
 |--------|-----------|
 | Win64 only | STT and Piper TTS plugins declare Win64 PlatformAllowList; macOS/Linux is untested |
-| No automated tests | No unit or integration test suite exists in the repo |
 | No packaging guide |	PackagingFixes branch addresses some staging issues but documentation is minimal |
 | RuntimeAudioImporter OSS unmaintained |	The bundled open-source version may have bugs; the maintained version is on Fab and is paid. Note: It MUST be purchased for professional use |
 | External binaries not bundled	| Whisper DLLs, model .bin, Piper Win64 archive, and ONNX models must all be downloaded separately |
