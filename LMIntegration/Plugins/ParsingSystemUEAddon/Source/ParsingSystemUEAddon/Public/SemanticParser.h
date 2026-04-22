@@ -161,7 +161,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	TArray<float> GetSemanticEmbedding(const TArray<int64>& InputIDs) const;
 
-	// Initializes the parser outside of a subsystem lifecycle, useful for tests and editor tools.
+	// Initializes the parser outside a subsystem lifecycle, useful for tests and editor tools.
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	bool InitializeForTesting();
 	
@@ -169,7 +169,7 @@ public:
 	void CacheEmbeddingsFromDataTable(UDataTable* CommandTable);
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	ENPCAnimationID GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f, float MinimumMargin = 0.08f);
+	ENPCAnimationID GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f, float MinimumMargin = 0.0f);
 
 	// Returns the detailed score breakdown for a single input.
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
