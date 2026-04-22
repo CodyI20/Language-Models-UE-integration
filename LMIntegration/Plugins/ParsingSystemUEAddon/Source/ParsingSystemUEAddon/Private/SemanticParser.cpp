@@ -43,14 +43,35 @@ namespace
 	constexpr float SafeInputContainedBoost = 0.18f;
 	constexpr float SafeCoverageBlendWeight = 0.10f;
 	constexpr float SafeMaxLexicalBoost = 0.33f;
+	constexpr float SafeMismatchPenaltyWeight = 0.12f;
+	constexpr float SafeNoOverlapPenalty = 0.12f;
+	constexpr float SafeMaxLexicalPenalty = 0.16f;
+	constexpr float SafeAmbiguousOverlapPenalty = 0.14f;
+	constexpr float SafeMinAliasCoverageForFocusedBoost = 0.90f;
+	constexpr float SafeFocusedBlendWeight = 0.50f;
+	constexpr float SafeFocusedFallbackBlendWeight = 0.30f;
 	constexpr float AggressiveAliasContainedBoost = 0.30f;
 	constexpr float AggressiveInputContainedBoost = 0.22f;
 	constexpr float AggressiveCoverageBlendWeight = 0.12f;
 	constexpr float AggressiveMaxLexicalBoost = 0.42f;
+	constexpr float AggressiveMismatchPenaltyWeight = 0.18f;
+	constexpr float AggressiveNoOverlapPenalty = 0.12f;
+	constexpr float AggressiveMaxLexicalPenalty = 0.24f;
+	constexpr float AggressiveAmbiguousOverlapPenalty = 0.14f;
+	constexpr float AggressiveMinAliasCoverageForFocusedBoost = 0.80f;
+	constexpr float AggressiveFocusedBlendWeight = 0.70f;
+	constexpr float AggressiveFocusedFallbackBlendWeight = 0.40f;
 	const float AliasContainedBoost = bAggressivePreset ? AggressiveAliasContainedBoost : SafeAliasContainedBoost;
 	const float InputContainedBoost = bAggressivePreset ? AggressiveInputContainedBoost : SafeInputContainedBoost;
 	const float CoverageBlendWeight = bAggressivePreset ? AggressiveCoverageBlendWeight : SafeCoverageBlendWeight;
 	const float MaxLexicalBoost = bAggressivePreset ? AggressiveMaxLexicalBoost : SafeMaxLexicalBoost;
+	const float MismatchPenaltyWeight = bAggressivePreset ? AggressiveMismatchPenaltyWeight : SafeMismatchPenaltyWeight;
+	const float NoOverlapPenalty = bAggressivePreset ? AggressiveNoOverlapPenalty : SafeNoOverlapPenalty;
+	const float MaxLexicalPenalty = bAggressivePreset ? AggressiveMaxLexicalPenalty : SafeMaxLexicalPenalty;
+	const float AmbiguousOverlapPenalty = bAggressivePreset ? AggressiveAmbiguousOverlapPenalty : SafeAmbiguousOverlapPenalty;
+	const float MinAliasCoverageForFocusedBoost = bAggressivePreset ? AggressiveMinAliasCoverageForFocusedBoost : SafeMinAliasCoverageForFocusedBoost;
+	const float FocusedBlendWeight = bAggressivePreset ? AggressiveFocusedBlendWeight : SafeFocusedBlendWeight;
+	const float FocusedFallbackBlendWeight = bAggressivePreset ? AggressiveFocusedFallbackBlendWeight : SafeFocusedFallbackBlendWeight;
 
 	bool IsContentToken(const int64 TokenId)
 	{
@@ -111,8 +132,11 @@ namespace
 		return Focused;
 	}
 
-	float ComputeLexicalBoost(const TSet<int64>& InputTokenSet, const TSet<int64>& AliasTokenSet)
+	float ComputeLexicalAdjustment(const TSet<int64>& InputTokenSet, const TSet<int64>& AliasTokenSet, float& OutAliasCoverage, float& OutInputCoverage)
 	{
+		OutAliasCoverage = 0.0f;
+		OutInputCoverage = 0.0f;
+
 		if (InputTokenSet.IsEmpty() || AliasTokenSet.IsEmpty())
 		{
 			return 0.0f;
@@ -129,11 +153,13 @@ namespace
 
 		if (OverlapCount == 0)
 		{
-			return 0.0f;
+			return -NoOverlapPenalty;
 		}
 
 		const float AliasCoverage = static_cast<float>(OverlapCount) / static_cast<float>(AliasTokenSet.Num());
 		const float InputCoverage = static_cast<float>(OverlapCount) / static_cast<float>(InputTokenSet.Num());
+		OutAliasCoverage = AliasCoverage;
+		OutInputCoverage = InputCoverage;
 
 		float Boost = 0.0f;
 		if (AliasCoverage >= 1.0f)
@@ -148,7 +174,17 @@ namespace
 		const float WeightedCoverage = (0.7f * AliasCoverage) + (0.3f * InputCoverage);
 		Boost += CoverageBlendWeight * WeightedCoverage;
 
-		return FMath::Min(Boost, MaxLexicalBoost);
+		const float AliasMissRate = 1.0f - AliasCoverage;
+		const float InputMissRate = 1.0f - InputCoverage;
+		const float Penalty = FMath::Min((0.5f * (AliasMissRate + InputMissRate)) * MismatchPenaltyWeight, MaxLexicalPenalty);
+
+		float AmbiguityPenalty = 0.0f;
+		if (AliasCoverage < 1.0f && InputCoverage < 1.0f)
+		{
+			AmbiguityPenalty = AmbiguousOverlapPenalty * (1.0f - AliasCoverage);
+		}
+
+		return FMath::Min(Boost, MaxLexicalBoost) - Penalty - AmbiguityPenalty;
 	}
 
 	FString EscapeCsvField(const FString& Field)
@@ -414,17 +450,27 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 	}
 
 	const TSet<int64> InputTokenSet = ExtractContentTokenSet(InputIDs);
+	const float FocusedRetentionRatio = (RawContentTokenCount > 0)
+		? static_cast<float>(FocusedContentTokenCount) / static_cast<float>(RawContentTokenCount)
+		: 1.0f;
 
 	ENPCAnimationID WinningCommand = ENPCAnimationID::ACTION_NONE;
+	ENPCAnimationID RunnerUpCommand = ENPCAnimationID::ACTION_NONE;
 	FString BestAlias = TEXT("None");
 	float BestScore = -1.0f;
 	float RunnerUpScore = -1.0f;
+	TMap<ENPCAnimationID, float> BestScorePerCommand;
 
 	// Compare the input text against every cached phrase
 	for (const auto& CachedPair : CachedAliasEmbeddings)
 	{
 		const FString& AliasText = CachedPair.Key;
 		const TArray<float>& AliasVector = CachedPair.Value;
+		const ENPCAnimationID* FoundCommand = AliasToCommandMap.Find(AliasText);
+		if (!FoundCommand)
+		{
+			continue;
+		}
 
 		float SimilarityScore = 0.0f;
 		for (int32 i = 0; i < EmbeddingDimension; ++i)
@@ -435,6 +481,14 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 
 		float FocusedSimilarityScore = SimilarityScore;
 
+		float AliasCoverage = 0.0f;
+		float InputCoverage = 0.0f;
+		float LexicalAdjustment = 0.0f;
+		if (const TSet<int64>* AliasTokenSet = CachedAliasTokenSets.Find(AliasText))
+		{
+			LexicalAdjustment = ComputeLexicalAdjustment(InputTokenSet, *AliasTokenSet, AliasCoverage, InputCoverage);
+		}
+
 		if (!FocusedPlayerEmbedding.IsEmpty())
 		{
 			FocusedSimilarityScore = 0.0f;
@@ -442,43 +496,70 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 			{
 				FocusedSimilarityScore += FocusedPlayerEmbedding[i] * AliasVector[i];
 			}
-			SimilarityScore = FMath::Max(SimilarityScore, FocusedSimilarityScore);
+
+			if (FocusedSimilarityScore >= RawSimilarityScore)
+			{
+				const bool bStrongLexicalAnchor = AliasCoverage >= MinAliasCoverageForFocusedBoost;
+				const float BlendAlpha = bStrongLexicalAnchor
+					? (FocusedBlendWeight * FocusedRetentionRatio)
+					: (FocusedFallbackBlendWeight * 0.5f);
+				SimilarityScore = FMath::Lerp(RawSimilarityScore, FocusedSimilarityScore, BlendAlpha);
+
+				if (!bStrongLexicalAnchor)
+				{
+					SimilarityScore = FMath::Min(SimilarityScore, RawSimilarityScore);
+				}
+			}
+			else
+			{
+				SimilarityScore = FMath::Lerp(RawSimilarityScore, FocusedSimilarityScore, FocusedFallbackBlendWeight);
+			}
 		}
 
-		float LexicalBoost = 0.0f;
-		if (const TSet<int64>* AliasTokenSet = CachedAliasTokenSets.Find(AliasText))
-		{
-			LexicalBoost = ComputeLexicalBoost(InputTokenSet, *AliasTokenSet);
-		}
 
-		const float AdjustedScore = FMath::Clamp(SimilarityScore + LexicalBoost, -1.0f, 1.0f);
+		const float AdjustedScore = FMath::Clamp(SimilarityScore + LexicalAdjustment, -1.0f, 1.0f);
 #if !UE_BUILD_SHIPPING
 		UE_LOG(
 			LogTemp,
 			Verbose,
-			TEXT("Alias='%s' RawSemantic=%0.4f FocusedSemantic=%0.4f ChosenSemantic=%0.4f Lexical=%0.4f Final=%0.4f"),
+			TEXT("Alias='%s' Command=%s RawSemantic=%0.4f FocusedSemantic=%0.4f ChosenSemantic=%0.4f AliasCoverage=%0.4f InputCoverage=%0.4f LexicalAdjust=%0.4f Final=%0.4f"),
 			*AliasText,
+			*UEnum::GetValueAsString(*FoundCommand),
 			RawSimilarityScore,
 			FocusedSimilarityScore,
 			SimilarityScore,
-			LexicalBoost,
+			AliasCoverage,
+			InputCoverage,
+			LexicalAdjustment,
 			AdjustedScore
 		);
 #endif
 
+		const float ExistingCommandBest = BestScorePerCommand.FindRef(*FoundCommand);
+		if (!BestScorePerCommand.Contains(*FoundCommand) || AdjustedScore > ExistingCommandBest)
+		{
+			BestScorePerCommand.Add(*FoundCommand, AdjustedScore);
+		}
+
 		if (AdjustedScore > BestScore)
 		{
-			RunnerUpScore = BestScore;
 			BestScore = AdjustedScore;
 			BestAlias = AliasText;
-			if (const auto* FoundCommand = AliasToCommandMap.Find(AliasText))
-			{
-				WinningCommand = *FoundCommand;
-			}
+			WinningCommand = *FoundCommand;
 		}
-		else if (AdjustedScore > RunnerUpScore)
+	}
+
+	for (const TPair<ENPCAnimationID, float>& CommandScorePair : BestScorePerCommand)
+	{
+		if (CommandScorePair.Key == WinningCommand)
 		{
-			RunnerUpScore = AdjustedScore;
+			continue;
+		}
+
+		if (CommandScorePair.Value > RunnerUpScore)
+		{
+			RunnerUpScore = CommandScorePair.Value;
+			RunnerUpCommand = CommandScorePair.Key;
 		}
 	}
 
@@ -486,6 +567,7 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 	Report.BestCommand = WinningCommand;
 	Report.BestScore = BestScore;
 	Report.RunnerUpScore = RunnerUpScore;
+	Report.RunnerUpCommand = RunnerUpCommand;
 	Report.Margin = (RunnerUpScore < -0.5f) ? BestScore : (BestScore - RunnerUpScore);
 
 	return Report;
@@ -505,17 +587,37 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 
 	if (Report.BestScore < ConfidenceThreshold)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Rejected! Best match was '%s' (Score: %f) but fell below threshold of %f"), *Report.BestAlias, Report.BestScore, ConfidenceThreshold);
+		UE_LOG(LogTemp, Warning, TEXT("Rejected! Best match was '%s' for command: '%s' (Score: %f) but fell below threshold of %f"), *Report.BestAlias, *UEnum::GetValueAsString(Report.BestCommand), Report.BestScore, ConfidenceThreshold);
 		return ENPCAnimationID::ACTION_NONE;
 	}
 
 	if (Report.Margin < MinimumMargin)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Rejected! Best match was '%s' (Score: %f, Margin: %f) but fell below minimum margin of %f"), *Report.BestAlias, Report.BestScore, Report.Margin, MinimumMargin);
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("Rejected! Best match was '%s' (%s, Score: %f) but competing command %s scored %f (Margin: %f, min: %f)"),
+			*Report.BestAlias,
+			*UEnum::GetValueAsString(Report.BestCommand),
+			Report.BestScore,
+			*UEnum::GetValueAsString(Report.RunnerUpCommand),
+			Report.RunnerUpScore,
+			Report.Margin,
+			MinimumMargin
+		);
 		return ENPCAnimationID::ACTION_NONE;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("WINNER: %s via alias '%s' (Score: %f, Margin: %f)"), *UEnum::GetValueAsString(Report.BestCommand), *Report.BestAlias, Report.BestScore, Report.Margin);
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("WINNER: %s via alias '%s' (Score: %f, Margin vs %s: %f)"),
+		*UEnum::GetValueAsString(Report.BestCommand),
+		*Report.BestAlias,
+		Report.BestScore,
+		*UEnum::GetValueAsString(Report.RunnerUpCommand),
+		Report.Margin
+	);
 #if !UE_BUILD_SHIPPING
 	static bool bLoggedScorePreset = false;
 	if (!bLoggedScorePreset)
@@ -542,27 +644,22 @@ FSemanticParseEvaluationReport USemanticParser::EvaluateParsingCases(const TArra
 	{
 		FSemanticParseScoreReport Report = GetBestMatchingCommandReport(TestCase.InputText);
 		Report.ExpectedCommand = TestCase.ExpectedCommand;
-		Report.bShouldMatch = TestCase.bShouldMatch;
 		Evaluation.CaseReports.Add(Report);
 		Evaluation.AverageBestScore += Report.BestScore;
 
-		const bool bAccepted = (Report.BestCommand != ENPCAnimationID::ACTION_NONE) && (Report.BestScore >= ConfidenceThreshold) && (Report.Margin >= MinimumMargin);
-		const bool bPassed = TestCase.bShouldMatch ? (bAccepted && (Report.BestCommand == TestCase.ExpectedCommand)) : !bAccepted;
+		const bool bAccepted =
+	(Report.BestCommand != ENPCAnimationID::ACTION_NONE) &&
+	(Report.BestScore >= ConfidenceThreshold) &&
+	(Report.Margin >= MinimumMargin);
+
+		const bool bExpectedRejection = (TestCase.ExpectedCommand == ENPCAnimationID::ACTION_NONE);
+		const bool bPassed = bExpectedRejection
+			? !bAccepted
+			: (bAccepted && (Report.BestCommand == TestCase.ExpectedCommand));
 		Report.bPassed = bPassed;
 		Evaluation.CaseReports.Last() = Report;
 
-		if (TestCase.bShouldMatch)
-		{
-			if (bPassed)
-			{
-				++Evaluation.CorrectMatches;
-			}
-			else
-			{
-				++Evaluation.FalseNegatives;
-			}
-		}
-		else
+		if (bExpectedRejection)
 		{
 			if (bPassed)
 			{
@@ -573,6 +670,17 @@ FSemanticParseEvaluationReport USemanticParser::EvaluateParsingCases(const TArra
 				++Evaluation.FalsePositives;
 			}
 		}
+		else
+		{
+			if (bPassed)
+			{
+				++Evaluation.CorrectMatches;
+			}
+			else
+			{
+				++Evaluation.FalseNegatives;
+			}
+		}
 
 		Evaluation.PassedCases += bPassed ? 1 : 0;
 		Evaluation.FailedCases += bPassed ? 0 : 1;
@@ -581,10 +689,10 @@ FSemanticParseEvaluationReport USemanticParser::EvaluateParsingCases(const TArra
 		UE_LOG(
 			LogTemp,
 			Verbose,
-			TEXT("EvalCase='%s' Expected=%s bShouldMatch=%s Actual=%s Accepted=%s BestScore=%0.4f Margin=%0.4f Result=%s"),
+			TEXT("EvalCase='%s' Expected=%s ExpectedRejection=%s Actual=%s Accepted=%s BestScore=%0.4f Margin=%0.4f Result=%s"),
 			*TestCase.InputText,
 			*UEnum::GetValueAsString(TestCase.ExpectedCommand),
-			TestCase.bShouldMatch ? TEXT("true") : TEXT("false"),
+			bExpectedRejection ? TEXT("true") : TEXT("false"),
 			*UEnum::GetValueAsString(Report.BestCommand),
 			bAccepted ? TEXT("true") : TEXT("false"),
 			Report.BestScore,
@@ -626,7 +734,6 @@ FSemanticParseEvaluationReport USemanticParser::EvaluateParsingCasesFromDataTabl
 		FSemanticParseCase Case;
 		Case.InputText = Row->InputText;
 		Case.ExpectedCommand = Row->ExpectedCommand;
-		Case.bShouldMatch = Row->bShouldMatch;
 		Cases.Add(Case);
 	}
 
@@ -657,16 +764,17 @@ FString USemanticParser::ExportEvaluationReportToJson(const FSemanticParseEvalua
 FString USemanticParser::ExportEvaluationReportToCsv(const FSemanticParseEvaluationReport& Report, const FString& OutputFilePath) const
 {
 	FString CsvOutput;
-	CsvOutput += TEXT("InputText,ExpectedCommand,bShouldMatch,BestAlias,BestCommand,BestScore,RunnerUpScore,Margin,bPassed\n");
+	CsvOutput += TEXT("InputText,ExpectedCommand,BestAlias,BestCommand,BestScore,RunnerUpCommand,RunnerUpScore,Margin,bPassed\n");
 
 	for (const FSemanticParseScoreReport& CaseReport : Report.CaseReports)
 	{
 		CsvOutput += EscapeCsvField(CaseReport.InputText) + TEXT(",");
 		CsvOutput += EscapeCsvField(UEnum::GetValueAsString(CaseReport.ExpectedCommand)) + TEXT(",");
-		CsvOutput += FString::Printf(TEXT("%s,"), CaseReport.bShouldMatch ? TEXT("true") : TEXT("false"));
 		CsvOutput += EscapeCsvField(CaseReport.BestAlias) + TEXT(",");
 		CsvOutput += EscapeCsvField(UEnum::GetValueAsString(CaseReport.BestCommand)) + TEXT(",");
-		CsvOutput += FString::Printf(TEXT("%0.4f,%0.4f,%0.4f,"), CaseReport.BestScore, CaseReport.RunnerUpScore, CaseReport.Margin);
+		CsvOutput += FString::Printf(TEXT("%0.4f,"), CaseReport.BestScore);
+		CsvOutput += EscapeCsvField(UEnum::GetValueAsString(CaseReport.RunnerUpCommand)) + TEXT(",");
+		CsvOutput += FString::Printf(TEXT("%0.4f,%0.4f,"), CaseReport.RunnerUpScore, CaseReport.Margin);
 		CsvOutput += (CaseReport.bPassed ? TEXT("true") : TEXT("false"));
 		CsvOutput += TEXT("\n");
 	}

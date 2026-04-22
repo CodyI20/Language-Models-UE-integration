@@ -58,9 +58,6 @@ struct FSemanticParseCase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
 	ENPCAnimationID ExpectedCommand = ENPCAnimationID::ACTION_NONE;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
-	bool bShouldMatch = true;
 };
 
 USTRUCT(BlueprintType)
@@ -73,9 +70,6 @@ struct FSemanticParseCaseRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
 	ENPCAnimationID ExpectedCommand = ENPCAnimationID::ACTION_NONE;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
-	bool bShouldMatch = true;
 };
 
 USTRUCT(BlueprintType)
@@ -99,15 +93,15 @@ struct FSemanticParseScoreReport
 	float RunnerUpScore = -1.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	ENPCAnimationID RunnerUpCommand = ENPCAnimationID::ACTION_NONE;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
 	float Margin = 0.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
 	ENPCAnimationID ExpectedCommand = ENPCAnimationID::ACTION_NONE;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
-	bool bShouldMatch = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	UPROPERTY()
 	bool bPassed = false;
 };
 
