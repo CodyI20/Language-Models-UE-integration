@@ -33,6 +33,10 @@
 		{
 			"Name": "NNERuntimeORT",
 			"Enabled": true
+		},
+		{
+			"Name": "UTLogger",
+			"Enabled": true
 		}
 	]
 }

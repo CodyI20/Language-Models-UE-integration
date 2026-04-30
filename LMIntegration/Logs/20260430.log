@@ -1,0 +1,37 @@
+2026/04/30 16:10:37 [Info] [InitializeLog] SemanticParser initialized
+2026/04/30 16:10:45 [Info] [InitializeLog] SemanticParser initialized
+2026/04/30 16:26:55 [Info] [SemanticParser.cpp - InitializeTokenizer] Initializing the tokenizer
+2026/04/30 16:26:55 [Info] [SemanticParser.cpp - InitializeModel] 384
+2026/04/30 16:26:55 [Info] [SemanticParser.cpp - InitializeModel] Model loaded successfully!
+2026/04/30 16:27:12 [Info] [SemanticParser.cpp - InitializeTokenizer] Initializing the tokenizer
+2026/04/30 16:27:12 [Info] [SemanticParser.cpp - InitializeModel] 384
+2026/04/30 16:27:12 [Info] [SemanticParser.cpp - InitializeModel] Model loaded successfully!
+2026/04/30 16:27:35 [Info] [SemanticParser.cpp - InitializeTokenizer] Initializing the tokenizer
+2026/04/30 16:27:35 [Info] [SemanticParser.cpp - InitializeModel] 384
+2026/04/30 16:27:35 [Info] [SemanticParser.cpp - InitializeModel] Model loaded successfully!
+2026/04/30 16:28:39 [Info] [SemanticParser.cpp - InitializeTokenizer] Initializing the tokenizer
+2026/04/30 16:28:39 [Info] [SemanticParser.cpp - InitializeModel] SemanticParser_0
+2026/04/30 16:28:39 [Info] [SemanticParser.cpp - InitializeModel] Model loaded successfully!
+2026/04/30 16:39:14 [Info] [SemanticParser.cpp - InitializeTokenizer] Initializing the tokenizer
+2026/04/30 16:39:14 [Error] [SemanticParser.cpp - InitializeModel] Initializing Semantic Parser!
+2026/04/30 16:39:14 [Info] [SemanticParser.cpp - InitializeModel] Model loaded successfully!
+2026/04/30 16:40:06 [Info] [SemanticParser.cpp - InitializeTokenizer] INFO: Initializing the tokenizer
+2026/04/30 16:40:06 [Error] [SemanticParser.cpp - InitializeModel] ERROR: Initializing Semantic Parser!
+2026/04/30 16:40:06 [Info] [SemanticParser.cpp - InitializeModel] INFO: Model loaded successfully!
+2026/04/30 16:40:14 [Info] [SemanticParser.cpp - InitializeTokenizer] INFO: Initializing the tokenizer
+2026/04/30 16:40:14 [Error] [SemanticParser.cpp - InitializeModel] ERROR: Initializing Semantic Parser!
+2026/04/30 16:40:14 [Info] [SemanticParser.cpp - InitializeModel] INFO: Model loaded successfully!
+2026/04/30 16:40:44 [Info] [SemanticParser.cpp - InitializeTokenizer] INFO: Initializing the tokenizer
+2026/04/30 16:40:44 [Error] [SemanticParser.cpp - InitializeModel] ERROR: Initializing Semantic Parser!
+2026/04/30 16:40:45 [Info] [SemanticParser.cpp - InitializeModel] INFO: Model loaded successfully!
+2026/04/30 16:41:09 [Info] [SemanticParser.cpp - InitializeTokenizer] INFO: Initializing the tokenizer
+2026/04/30 16:41:09 [Error] [SemanticParser.cpp - InitializeModel] ERROR: Initializing Semantic Parser!
+2026/04/30 16:41:09 [Info] [SemanticParser.cpp - InitializeModel] INFO: Model loaded successfully!
+2026/04/30 16:46:25 [Info] [SemanticParser.cpp - InitializeTokenizer] INFO: Initializing the tokenizer
+2026/04/30 16:46:25 [Info] [SemanticParser.cpp - InitializeModel] INFO: Initializing Semantic Parser!
+2026/04/30 16:46:25 [Info] [SemanticParser.cpp - InitializeModel] INFO: Model loaded successfully!
+2026/04/30 16:46:25 [Trace] [SemanticParser.cpp - CacheEmbeddingsFromDataTable] TRACE: Data table SUCCESS: Loaded 31 aliases into memory from Data Table.
+2026/04/30 16:46:32 [Warning] [SemanticParser.cpp - GetBestMatchingCommand] WARNING: Raw tokens for 'Get down': [ 101 2131 2091 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 102 ]
+2026/04/30 16:46:32 [Trace] [SemanticParser.cpp - GetBestMatchingCommand] TRACE: WINNER: ENPCAnimationID::ACTION_GROUND via alias 'Get down' (Score: 1.000000)
+2026/04/30 16:46:40 [Warning] [SemanticParser.cpp - GetBestMatchingCommand] WARNING: Raw tokens for 'Get down': [ 101 2131 2091 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 102 ]
+2026/04/30 16:46:40 [Trace] [SemanticParser.cpp - GetBestMatchingCommand] TRACE: WINNER: ENPCAnimationID::ACTION_GROUND via alias 'Get down' (Score: 1.000000)

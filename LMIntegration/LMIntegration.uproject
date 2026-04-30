@@ -40,6 +40,10 @@
 		{
 			"Name": "NNERuntimeCoreML",
 			"Enabled": true
+		},
+		{
+			"Name": "UTLogger",
+			"Enabled": true
 		}
 	]
 }
