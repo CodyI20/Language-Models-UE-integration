@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "NNEModelData.h"
 #include "NNERuntimeCPU.h"
 #include "Engine/DataTable.h"
 #include "SemanticParser.generated.h"
@@ -49,6 +48,102 @@ struct FCommandAliasRow : public FTableRowBase
 	TArray<FString> DialogueOptions;
 };
 
+USTRUCT(BlueprintType)
+struct FSemanticParseCase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	FString InputText;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	ENPCAnimationID ExpectedCommand = ENPCAnimationID::ACTION_NONE;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	bool bShouldMatch = true;
+};
+
+USTRUCT(BlueprintType)
+struct FSemanticParseCaseRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	FString InputText;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	ENPCAnimationID ExpectedCommand = ENPCAnimationID::ACTION_NONE;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	bool bShouldMatch = true;
+};
+
+USTRUCT(BlueprintType)
+struct FSemanticParseScoreReport
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	FString InputText;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	FString BestAlias;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	ENPCAnimationID BestCommand = ENPCAnimationID::ACTION_NONE;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	float BestScore = -1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	float RunnerUpScore = -1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	float Margin = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	ENPCAnimationID ExpectedCommand = ENPCAnimationID::ACTION_NONE;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	bool bShouldMatch = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	bool bPassed = false;
+};
+
+USTRUCT(BlueprintType)
+struct FSemanticParseEvaluationReport
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	int32 TotalCases = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	int32 PassedCases = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	int32 FailedCases = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	int32 CorrectMatches = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	int32 CorrectRejections = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	int32 FalsePositives = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	int32 FalseNegatives = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	float AverageBestScore = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
+	TArray<FSemanticParseScoreReport> CaseReports;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTextSent, const FString&, TextSent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCommandProcessed, const ENPCAnimationID&, CommandID);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDialogueProcessed, const FString&, DialogueText);
@@ -71,17 +166,43 @@ public:
 	// Takes the token and returns the 384-dimensional embedding vector
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	TArray<float> GetSemanticEmbedding(const TArray<int64>& InputIDs) const;
+
+	// Initializes the parser outside of a subsystem lifecycle, useful for tests and editor tools.
+	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
+	bool InitializeForTesting();
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	void CacheEmbeddingsFromDataTable(UDataTable* CommandTable);
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
-	ENPCAnimationID GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f);
+	ENPCAnimationID GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold = 0.8f, float MinimumMargin = 0.08f);
+
+	// Returns the detailed score breakdown for a single input.
+	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
+	FSemanticParseScoreReport GetBestMatchingCommandReport(const FString& PlayerInput) const;
+
+	// Runs a labeled evaluation suite and returns aggregate pass/fail metrics.
+	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
+	FSemanticParseEvaluationReport EvaluateParsingCases(const TArray<FSemanticParseCase>& TestCases, float ConfidenceThreshold = 0.8f, float MinimumMargin = 0.08f);
+
+	// Runs a labeled evaluation suite stored in a DataTable.
+	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing", meta = (DisplayName = "Run Semantic Parser DataTable Evaluation"))
+	FSemanticParseEvaluationReport EvaluateParsingCasesFromDataTable(UDataTable* EvaluationTable, float ConfidenceThreshold = 0.8f, float MinimumMargin = 0.08f);
+
+	// Serializes an evaluation report to JSON; optionally writes it to disk.
+	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
+	FString ExportEvaluationReportToJson(const FSemanticParseEvaluationReport& Report, const FString& OutputFilePath = TEXT(""), bool bPrettyPrint = true) const;
+
+	// Serializes an evaluation report to CSV; optionally writes it to disk.
+	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
+	FString ExportEvaluationReportToCsv(const FSemanticParseEvaluationReport& Report, const FString& OutputFilePath = TEXT("")) const;
+
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	
 	UFUNCTION(BlueprintCallable, Category = "Semantic Parsing")
 	FString GetRandomDialogueOption(ENPCAnimationID CommandID);
 	
-	
+
 private:
 	// The compiled ONNX Model ready for CPU execution
 	TSharedPtr<UE::NNE::IModelInstanceCPU> ModelInstance;
@@ -90,7 +211,7 @@ private:
 	TMap<FString, TArray<float>> CachedCommandsEmbeddings;
 	
 	// The use of raw void pointer here is so that there won't be a need to #include standard
-	// C++ headers into the Unreal header file, preventing compiler errors
+	// C++ headers in the Unreal header file, preventing compiler errors
 	void* TokenizerInstance = nullptr;
 	
 	// Internal helper for the actual text-to-ID conversion
@@ -101,6 +222,12 @@ private:
 
 	// Maps that natural sentence back to the parent command (e.g., "Lie down" -> "ACTION_ONTHEGROUND")
 	TMap<FString, ENPCAnimationID> AliasToCommandMap;
+
+	// Cached content-token sets per alias for lexical overlap boosting.
+	TMap<FString, TSet<int64>> CachedAliasTokenSets;
+
+	// Union of all alias content tokens; used to filter out vocative noise (e.g., names).
+	TSet<int64> AliasVocabularyTokenSet;
 	
 	TMap<ENPCAnimationID, FCommandAliasRow> CommandAliasesMap;
 	
@@ -113,6 +240,4 @@ private:
 	bool InitializeModel();
 	
 	static FString GetTokenizerFilePath();
-	
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 };

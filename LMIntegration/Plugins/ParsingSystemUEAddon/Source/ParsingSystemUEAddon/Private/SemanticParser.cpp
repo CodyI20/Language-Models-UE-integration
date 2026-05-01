@@ -2,9 +2,13 @@
 
 #include "SemanticParser.h"
 #include "Misc/Paths.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "HAL/FileManager.h"
+#include "JsonObjectConverter.h"
 #include "NNE.h"
 #include "Core/Log.h"
+#include "NNEModelData.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/FileHelper.h"
 
@@ -17,6 +21,143 @@ THIRD_PARTY_INCLUDES_END
 namespace
 {
 	constexpr int32 EmbeddingDimension = 384;
+	constexpr int64 PadTokenId = 0;
+	constexpr int64 CLSTokenId = 101;
+	constexpr int64 SEPTokenId = 102;
+
+	// Switch this to Aggressive for stronger single-word containment behavior.
+	enum class EParserScorePreset : uint8
+	{
+		Safe,
+		Aggressive
+	};
+
+	EParserScorePreset GetActiveScorePreset()
+	{
+		return FParse::Param(FCommandLine::Get(), TEXT("ParsingAggressive"))
+			? EParserScorePreset::Aggressive
+			: EParserScorePreset::Safe;
+	}
+
+	const bool bAggressivePreset = GetActiveScorePreset() == EParserScorePreset::Aggressive;
+	constexpr float SafeAliasContainedBoost = 0.24f;
+	constexpr float SafeInputContainedBoost = 0.18f;
+	constexpr float SafeCoverageBlendWeight = 0.10f;
+	constexpr float SafeMaxLexicalBoost = 0.33f;
+	constexpr float AggressiveAliasContainedBoost = 0.30f;
+	constexpr float AggressiveInputContainedBoost = 0.22f;
+	constexpr float AggressiveCoverageBlendWeight = 0.12f;
+	constexpr float AggressiveMaxLexicalBoost = 0.42f;
+	const float AliasContainedBoost = bAggressivePreset ? AggressiveAliasContainedBoost : SafeAliasContainedBoost;
+	const float InputContainedBoost = bAggressivePreset ? AggressiveInputContainedBoost : SafeInputContainedBoost;
+	const float CoverageBlendWeight = bAggressivePreset ? AggressiveCoverageBlendWeight : SafeCoverageBlendWeight;
+	const float MaxLexicalBoost = bAggressivePreset ? AggressiveMaxLexicalBoost : SafeMaxLexicalBoost;
+
+	bool IsContentToken(const int64 TokenId)
+	{
+		return TokenId != PadTokenId && TokenId != CLSTokenId && TokenId != SEPTokenId;
+	}
+
+	int32 CountContentTokens(const TArray<int64>& TokenIds)
+	{
+		int32 Count = 0;
+		for (const int64 TokenId : TokenIds)
+		{
+			if (IsContentToken(TokenId))
+			{
+				++Count;
+			}
+		}
+		return Count;
+	}
+
+	TSet<int64> ExtractContentTokenSet(const TArray<int64>& TokenIds)
+	{
+		TSet<int64> ContentSet;
+		for (const int64 TokenId : TokenIds)
+		{
+			if (IsContentToken(TokenId))
+			{
+				ContentSet.Add(TokenId);
+			}
+		}
+		return ContentSet;
+	}
+
+	TArray<int64> BuildFocusedInputIDs(const TArray<int64>& TokenIds, const TSet<int64>& AliasVocabulary)
+	{
+		if (AliasVocabulary.IsEmpty())
+		{
+			return TokenIds;
+		}
+
+		TArray<int64> Focused;
+		Focused.Reserve(TokenIds.Num());
+		Focused.Add(CLSTokenId);
+
+		for (const int64 TokenId : TokenIds)
+		{
+			if (IsContentToken(TokenId) && AliasVocabulary.Contains(TokenId))
+			{
+				Focused.Add(TokenId);
+			}
+		}
+
+		Focused.Add(SEPTokenId);
+		while (Focused.Num() < TokenIds.Num())
+		{
+			Focused.Add(PadTokenId);
+		}
+
+		return Focused;
+	}
+
+	float ComputeLexicalBoost(const TSet<int64>& InputTokenSet, const TSet<int64>& AliasTokenSet)
+	{
+		if (InputTokenSet.IsEmpty() || AliasTokenSet.IsEmpty())
+		{
+			return 0.0f;
+		}
+
+		int32 OverlapCount = 0;
+		for (const int64 AliasToken : AliasTokenSet)
+		{
+			if (InputTokenSet.Contains(AliasToken))
+			{
+				++OverlapCount;
+			}
+		}
+
+		if (OverlapCount == 0)
+		{
+			return 0.0f;
+		}
+
+		const float AliasCoverage = static_cast<float>(OverlapCount) / static_cast<float>(AliasTokenSet.Num());
+		const float InputCoverage = static_cast<float>(OverlapCount) / static_cast<float>(InputTokenSet.Num());
+
+		float Boost = 0.0f;
+		if (AliasCoverage >= 1.0f)
+		{
+			Boost += AliasContainedBoost;
+		}
+		if (InputCoverage >= 1.0f)
+		{
+			Boost += InputContainedBoost;
+		}
+
+		const float WeightedCoverage = (0.7f * AliasCoverage) + (0.3f * InputCoverage);
+		Boost += CoverageBlendWeight * WeightedCoverage;
+
+		return FMath::Min(Boost, MaxLexicalBoost);
+	}
+
+	FString EscapeCsvField(const FString& Field)
+	{
+		FString Escaped = Field;
+		Escaped.ReplaceInline(TEXT("\""), TEXT("\"\""));
+		return FString::Printf(TEXT("\"%s\""), *Escaped);
+	}
 }
 
 using namespace tokenizers;
@@ -26,6 +167,11 @@ void USemanticParser::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	InitializeTokenizer();
 	InitializeModel();
+}
+
+bool USemanticParser::InitializeForTesting()
+{
+	return InitializeTokenizer() && InitializeModel();
 }
 
 bool USemanticParser::InitializeModel()
@@ -221,15 +367,15 @@ TArray<float> USemanticParser::GetSemanticEmbedding(const TArray<int64>& InputID
     return TArray<float>();
 }
 
-ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold)
+FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FString& PlayerInput) const
 {
-	// Lock the function until the thread is done
-	FScopeLock Lock(&InferenceMutex);
-	
+	FSemanticParseScoreReport Report;
+	Report.InputText = PlayerInput;
+
 	if (CachedAliasEmbeddings.IsEmpty())
 	{
 		ULog::Error(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), TEXT("Cache is empty!"));
-		return ENPCAnimationID::ACTION_NONE;
+		return Report;
 	};
 
 	TArray<int64> InputIDs;
@@ -237,7 +383,7 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 	if (!TokenizeString(PlayerInput, InputIDs))
 	{
 		ULog::Error(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), TEXT("Tokenization Failed"));
-		return ENPCAnimationID::ACTION_NONE;
+		return Report;
 	};
 #if !UE_BUILD_SHIPPING
 	FString TokenString = TEXT("");
@@ -255,12 +401,25 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 	if (PlayerEmbedding.IsEmpty())
 	{
 		ULog::Error(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), TEXT("Embedding Failed"));
-		return ENPCAnimationID::ACTION_NONE;
+		return Report;
 	};
+
+	// Build a noise-resistant embedding variant by keeping only tokens seen in aliases.
+	const TArray<int64> FocusedInputIDs = BuildFocusedInputIDs(InputIDs, AliasVocabularyTokenSet);
+	TArray<float> FocusedPlayerEmbedding;
+	const int32 RawContentTokenCount = CountContentTokens(InputIDs);
+	const int32 FocusedContentTokenCount = CountContentTokens(FocusedInputIDs);
+	if (FocusedContentTokenCount > 0 && FocusedContentTokenCount < RawContentTokenCount)
+	{
+		FocusedPlayerEmbedding = GetSemanticEmbedding(FocusedInputIDs);
+	}
+
+	const TSet<int64> InputTokenSet = ExtractContentTokenSet(InputIDs);
 
 	ENPCAnimationID WinningCommand = ENPCAnimationID::ACTION_NONE;
 	FString BestAlias = TEXT("None");
-	float Score = -1.0f;
+	float BestScore = -1.0f;
+	float RunnerUpScore = -1.0f;
 
 	// Compare the input text against every cached phrase
 	for (const auto& CachedPair : CachedAliasEmbeddings)
@@ -273,27 +432,255 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 		{
 			SimilarityScore += PlayerEmbedding[i] * AliasVector[i];
 		}
+		const float RawSimilarityScore = SimilarityScore;
 
-		if (SimilarityScore > Score)
+		float FocusedSimilarityScore = SimilarityScore;
+
+		if (!FocusedPlayerEmbedding.IsEmpty())
 		{
-			Score = SimilarityScore;
+			FocusedSimilarityScore = 0.0f;
+			for (int32 i = 0; i < EmbeddingDimension; ++i)
+			{
+				FocusedSimilarityScore += FocusedPlayerEmbedding[i] * AliasVector[i];
+			}
+			SimilarityScore = FMath::Max(SimilarityScore, FocusedSimilarityScore);
+		}
+
+		float LexicalBoost = 0.0f;
+		if (const TSet<int64>* AliasTokenSet = CachedAliasTokenSets.Find(AliasText))
+		{
+			LexicalBoost = ComputeLexicalBoost(InputTokenSet, *AliasTokenSet);
+		}
+
+		const float AdjustedScore = FMath::Clamp(SimilarityScore + LexicalBoost, -1.0f, 1.0f);
+#if !UE_BUILD_SHIPPING
+		UE_LOG(
+			LogTemp,
+			Verbose,
+			TEXT("Alias='%s' RawSemantic=%0.4f FocusedSemantic=%0.4f ChosenSemantic=%0.4f Lexical=%0.4f Final=%0.4f"),
+			*AliasText,
+			RawSimilarityScore,
+			FocusedSimilarityScore,
+			SimilarityScore,
+			LexicalBoost,
+			AdjustedScore
+		);
+#endif
+
+		if (AdjustedScore > BestScore)
+		{
+			RunnerUpScore = BestScore;
+			BestScore = AdjustedScore;
 			BestAlias = AliasText;
-			if (ENPCAnimationID* FoundCommand = AliasToCommandMap.Find(AliasText))
+			if (const auto* FoundCommand = AliasToCommandMap.Find(AliasText))
 			{
 				WinningCommand = *FoundCommand;
 			}
 		}
+		else if (AdjustedScore > RunnerUpScore)
+		{
+			RunnerUpScore = AdjustedScore;
+		}
 	}
-	
-	if (Score < ConfidenceThreshold)
+
+	Report.BestAlias = BestAlias;
+	Report.BestCommand = WinningCommand;
+	Report.BestScore = BestScore;
+	Report.RunnerUpScore = RunnerUpScore;
+	Report.Margin = (RunnerUpScore < -0.5f) ? BestScore : (BestScore - RunnerUpScore);
+
+	return Report;
+}
+
+ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInput, float ConfidenceThreshold, float MinimumMargin)
+
+{
+	// Lock the function until the thread is done
+	FScopeLock Lock(&InferenceMutex);
+
+	const FSemanticParseScoreReport Report = GetBestMatchingCommandReport(PlayerInput);
+	if (Report.BestCommand == ENPCAnimationID::ACTION_NONE)
 	{
-		ULog::Trace(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("Rejected! Best match was '%s' (Score: %f) but fell below threshold of %f"), *BestAlias, Score, ConfidenceThreshold));
+		return ENPCAnimationID::ACTION_NONE;
+	}
+
+	if (Report.BestScore < ConfidenceThreshold)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Rejected! Best match was '%s' (Score: %f) but fell below threshold of %f"), *Report.BestAlias, Report.BestScore, ConfidenceThreshold);
+		return ENPCAnimationID::ACTION_NONE;
+	}
+
+	if (Report.Margin < MinimumMargin)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Rejected! Best match was '%s' (Score: %f, Margin: %f) but fell below minimum margin of %f"), *Report.BestAlias, Report.BestScore, Report.Margin, MinimumMargin);
 		return ENPCAnimationID::ACTION_NONE;
 	}
 	
-	ULog::Trace(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("WINNER: %s via alias '%s' (Score: %f)"), *UEnum::GetValueAsString(WinningCommand), *BestAlias, Score));
+	UE_LOG(LogTemp, Warning, TEXT("WINNER: %s via alias '%s' (Score: %f, Margin: %f)"), *UEnum::GetValueAsString(Report.BestCommand), *Report.BestAlias, Report.BestScore, Report.Margin);
+#if !UE_BUILD_SHIPPING
+	static bool bLoggedScorePreset = false;
+	if (!bLoggedScorePreset)
+	{
+		UE_LOG(
+			LogTemp,
+			Verbose,
+			TEXT("Semantic parser score preset: %s"),
+			bAggressivePreset ? TEXT("Aggressive") : TEXT("Safe")
+		);
+		bLoggedScorePreset = true;
+	}
+#endif
     
-	return WinningCommand;
+	return Report.BestCommand;
+}
+
+FSemanticParseEvaluationReport USemanticParser::EvaluateParsingCases(const TArray<FSemanticParseCase>& TestCases, float ConfidenceThreshold, float MinimumMargin)
+{
+	FSemanticParseEvaluationReport Evaluation;
+	Evaluation.TotalCases = TestCases.Num();
+
+	for (const FSemanticParseCase& TestCase : TestCases)
+	{
+		FSemanticParseScoreReport Report = GetBestMatchingCommandReport(TestCase.InputText);
+		Report.ExpectedCommand = TestCase.ExpectedCommand;
+		Report.bShouldMatch = TestCase.bShouldMatch;
+		Evaluation.CaseReports.Add(Report);
+		Evaluation.AverageBestScore += Report.BestScore;
+
+		const bool bAccepted = (Report.BestCommand != ENPCAnimationID::ACTION_NONE) && (Report.BestScore >= ConfidenceThreshold) && (Report.Margin >= MinimumMargin);
+		const bool bPassed = TestCase.bShouldMatch ? (bAccepted && (Report.BestCommand == TestCase.ExpectedCommand)) : !bAccepted;
+		Report.bPassed = bPassed;
+		Evaluation.CaseReports.Last() = Report;
+
+		if (TestCase.bShouldMatch)
+		{
+			if (bPassed)
+			{
+				++Evaluation.CorrectMatches;
+			}
+			else
+			{
+				++Evaluation.FalseNegatives;
+			}
+		}
+		else
+		{
+			if (bPassed)
+			{
+				++Evaluation.CorrectRejections;
+			}
+			else
+			{
+				++Evaluation.FalsePositives;
+			}
+		}
+
+		Evaluation.PassedCases += bPassed ? 1 : 0;
+		Evaluation.FailedCases += bPassed ? 0 : 1;
+
+#if !UE_BUILD_SHIPPING
+		UE_LOG(
+			LogTemp,
+			Verbose,
+			TEXT("EvalCase='%s' Expected=%s bShouldMatch=%s Actual=%s Accepted=%s BestScore=%0.4f Margin=%0.4f Result=%s"),
+			*TestCase.InputText,
+			*UEnum::GetValueAsString(TestCase.ExpectedCommand),
+			TestCase.bShouldMatch ? TEXT("true") : TEXT("false"),
+			*UEnum::GetValueAsString(Report.BestCommand),
+			bAccepted ? TEXT("true") : TEXT("false"),
+			Report.BestScore,
+			Report.Margin,
+			bPassed ? TEXT("PASS") : TEXT("FAIL")
+		);
+#endif
+	}
+
+	if (Evaluation.TotalCases > 0)
+	{
+		Evaluation.AverageBestScore /= static_cast<float>(Evaluation.TotalCases);
+	}
+
+	return Evaluation;
+}
+
+FSemanticParseEvaluationReport USemanticParser::EvaluateParsingCasesFromDataTable(UDataTable* EvaluationTable, float ConfidenceThreshold, float MinimumMargin)
+{
+	if (!EvaluationTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Evaluation table is missing or invalid!"));
+		return FSemanticParseEvaluationReport();
+	}
+
+	TArray<FSemanticParseCaseRow*> Rows;
+	EvaluationTable->GetAllRows<FSemanticParseCaseRow>(TEXT("SemanticParserEvaluation"), Rows);
+
+	TArray<FSemanticParseCase> Cases;
+	Cases.Reserve(Rows.Num());
+
+	for (const FSemanticParseCaseRow* Row : Rows)
+	{
+		if (!Row)
+		{
+			continue;
+		}
+
+		FSemanticParseCase Case;
+		Case.InputText = Row->InputText;
+		Case.ExpectedCommand = Row->ExpectedCommand;
+		Case.bShouldMatch = Row->bShouldMatch;
+		Cases.Add(Case);
+	}
+
+	return EvaluateParsingCases(Cases, ConfidenceThreshold, MinimumMargin);
+}
+
+FString USemanticParser::ExportEvaluationReportToJson(const FSemanticParseEvaluationReport& Report, const FString& OutputFilePath, bool bPrettyPrint) const
+{
+	FString JsonOutput;
+	const int32 Indent = bPrettyPrint ? 2 : 0;
+	if (!FJsonObjectConverter::UStructToJsonObjectString(FSemanticParseEvaluationReport::StaticStruct(), &Report, JsonOutput, 0, 0, Indent))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to convert evaluation report to JSON."));
+		return TEXT("");
+	}
+
+	if (!OutputFilePath.IsEmpty())
+	{
+		if (!FFileHelper::SaveStringToFile(JsonOutput, *OutputFilePath))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to save evaluation JSON to: %s"), *OutputFilePath);
+		}
+	}
+
+	return JsonOutput;
+}
+
+FString USemanticParser::ExportEvaluationReportToCsv(const FSemanticParseEvaluationReport& Report, const FString& OutputFilePath) const
+{
+	FString CsvOutput;
+	CsvOutput += TEXT("InputText,ExpectedCommand,bShouldMatch,BestAlias,BestCommand,BestScore,RunnerUpScore,Margin,bPassed\n");
+
+	for (const FSemanticParseScoreReport& CaseReport : Report.CaseReports)
+	{
+		CsvOutput += EscapeCsvField(CaseReport.InputText) + TEXT(",");
+		CsvOutput += EscapeCsvField(UEnum::GetValueAsString(CaseReport.ExpectedCommand)) + TEXT(",");
+		CsvOutput += FString::Printf(TEXT("%s,"), CaseReport.bShouldMatch ? TEXT("true") : TEXT("false"));
+		CsvOutput += EscapeCsvField(CaseReport.BestAlias) + TEXT(",");
+		CsvOutput += EscapeCsvField(UEnum::GetValueAsString(CaseReport.BestCommand)) + TEXT(",");
+		CsvOutput += FString::Printf(TEXT("%0.4f,%0.4f,%0.4f,"), CaseReport.BestScore, CaseReport.RunnerUpScore, CaseReport.Margin);
+		CsvOutput += (CaseReport.bPassed ? TEXT("true") : TEXT("false"));
+		CsvOutput += TEXT("\n");
+	}
+
+	if (!OutputFilePath.IsEmpty())
+	{
+		if (!FFileHelper::SaveStringToFile(CsvOutput, *OutputFilePath))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to save evaluation CSV to: %s"), *OutputFilePath);
+		}
+	}
+
+	return CsvOutput;
 }
 
 FString USemanticParser::GetRandomDialogueOption(ENPCAnimationID CommandID)
@@ -331,6 +718,9 @@ void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 	
 	CachedAliasEmbeddings.Reset();
 	AliasToCommandMap.Reset();
+	CachedAliasTokenSets.Reset();
+	AliasVocabularyTokenSet.Reset();
+	CommandAliasesMap.Reset();
 	
 	TArray<FCommandAliasRow*> AllRows;
 	CommandTable->GetAllRows<FCommandAliasRow>(TEXT("SemanticParserCache"), AllRows);
@@ -346,12 +736,19 @@ void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 			
 			if (TokenizeString(Alias, InputIDs))
 			{
+				TSet<int64> AliasTokenSet = ExtractContentTokenSet(InputIDs);
+				for (const int64 AliasTokenId : AliasTokenSet)
+				{
+					AliasVocabularyTokenSet.Add(AliasTokenId);
+				}
+
 				TArray<float> Embedding = GetSemanticEmbedding(InputIDs);
 				
 				if (!Embedding.IsEmpty())
 				{
 					CachedAliasEmbeddings.Add(Alias, Embedding);
 					AliasToCommandMap.Add(Alias, CommandID);
+					CachedAliasTokenSets.Add(Alias, MoveTemp(AliasTokenSet));
 					CommandAliasesMap.Add(CommandID, *AllRows[i]);
 				}
 			}
