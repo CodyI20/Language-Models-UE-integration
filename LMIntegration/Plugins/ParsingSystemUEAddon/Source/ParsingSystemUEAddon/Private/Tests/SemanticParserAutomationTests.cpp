@@ -13,7 +13,6 @@ namespace
 {
 	constexpr const TCHAR* CommandAliasesAssetPath = TEXT("/ParsingSystemUEAddon/DT_SemanticCommands.DT_SemanticCommands");
 	constexpr const TCHAR* EvaluationCasesAssetPath = TEXT("/ParsingSystemUEAddon/DT_SemanticParserTestCases.DT_SemanticParserTestCases");
-	constexpr const TCHAR* DefaultEvaluationCasesCsvName = TEXT("SemanticParseCasesTemplate.csv");
 
 	FString GetPluginContentDir()
 	{
@@ -90,15 +89,14 @@ namespace
 		FAutomationTestBase& Test,
 		const FString& Parameters,
 		const TCHAR* ParamKey,
-		const TCHAR* DefaultCsvName,
 		const TCHAR* AssetPath,
 		const UScriptStruct* ExpectedRowStruct,
-		const FString& SourceLabel)
+		const FString& SourceLabel,
+		const TCHAR* DefaultCsvName = nullptr)
 	{
 		FString CsvOverridePath;
-		const bool bHasOverride = FParse::Value(*Parameters, ParamKey, CsvOverridePath);
 
-		if (bHasOverride)
+		if (FParse::Value(*Parameters, ParamKey, CsvOverridePath))
 		{
 			Test.AddInfo(FString::Printf(TEXT("Using %s CSV override: %s"), *SourceLabel, *CsvOverridePath));
 			return LoadDataTableFromCsv(Test, CsvOverridePath, ExpectedRowStruct, SourceLabel);
@@ -158,7 +156,6 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 		*this,
 		Parameters,
 		TEXT("CommandCsv="),
-		nullptr,
 		CommandAliasesAssetPath,
 		FCommandAliasRow::StaticStruct(),
 		TEXT("Command aliases"));
@@ -174,7 +171,6 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 		*this,
 		Parameters,
 		TEXT("CasesCsv="),
-		nullptr,
 		EvaluationCasesAssetPath,
 		FSemanticParseCaseRow::StaticStruct(),
 		TEXT("Evaluation cases"));

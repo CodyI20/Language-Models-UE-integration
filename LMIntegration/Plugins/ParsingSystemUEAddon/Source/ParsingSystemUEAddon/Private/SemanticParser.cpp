@@ -900,7 +900,7 @@ FString USemanticParser::GetTokenizerFilePath()
 	FString ContentDir = IPluginManager::Get().FindPlugin("ParsingSystemUEAddon")->GetContentDir();
 	FString TokenizerPath = FPaths::Combine(ContentDir, TEXT("NLP_DATA"), TEXT("tokenizer.json"));
 	
-	// Optional step but ensures no oddities happen with relative directories for example: Folder/../Folder by collapsing them
+	// Optional step but ensures no oddities happen with relative directories, for example, Folder/../Folder by collapsing them
 	FPaths::CollapseRelativeDirectories(TokenizerPath);
 	
 	// Verify if the file exists before trying to load it
