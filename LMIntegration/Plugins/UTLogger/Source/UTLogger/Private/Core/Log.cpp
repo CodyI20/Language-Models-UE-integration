@@ -54,9 +54,9 @@ void ULog::Trace(const FString Tag, const FString Text)
  */
 void ULog::LogToFile(ELogType Type, const FString Tag, const FString Text)
 {
-#if !PLATFORM_DESKTOP
-	return;
-#endif
+// #if !PLATFORM_DESKTOP
+// 	return;
+// #endif
 
 	const FString DateText = FDateTime::Now().GetDate().ToString(TEXT("%Y%m%d"));
 	
@@ -97,10 +97,7 @@ void ULog::LogToFile(ELogType Type, const FString Tag, const FString Text)
  */
 void ULog::LogToScreen(const FColor Color, const FString Tag, const FString Text)
 {
-#if !UE_EDITOR && !WITH_EDITOR
-	return;
-#endif
-    	
+#if UE_EDITOR || WITH_EDITOR
 	if (!GEngine)
 	{
 		return;
@@ -108,6 +105,7 @@ void ULog::LogToScreen(const FColor Color, const FString Tag, const FString Text
 
 	const FString LogText = "[" + Tag + "] " + Text;
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, Color, LogText);
+#endif
 }
 
 /**
