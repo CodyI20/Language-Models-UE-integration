@@ -4,6 +4,7 @@
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "NNE.h"
+#include "Core/Log.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/FileHelper.h"
 
@@ -29,14 +30,14 @@ void USemanticParser::Initialize(FSubsystemCollectionBase& Collection)
 
 bool USemanticParser::InitializeModel()
 {
-	UE_LOG(LogTemp, Log, TEXT("Initializing SemanticParser"));
+	ULog::Info(TEXT("SemanticParser.cpp - InitializeModel"), TEXT("Initializing Semantic Parser!"));
 	
 	FString AssetPath = TEXT("/ParsingSystemUEAddon/LMModel/all-MiniLM-L6-v2-onnx.all-MiniLM-L6-v2-onnx");
 	UNNEModelData* FoundModel = LoadObject<UNNEModelData>(nullptr, *AssetPath);
 	
 	if (!FoundModel)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Model not loaded at path: %s"), *AssetPath);
+		ULog::Error(TEXT("SemanticParser.cpp - InitializeModel"), *FString::Printf(TEXT("Model not loaded at path: %s"), *AssetPath));
 		return false;
 	}
 	
@@ -45,7 +46,7 @@ bool USemanticParser::InitializeModel()
 	
 	if (!Runtime.IsValid())
 	{
-		UE_LOG(LogTemp, Error, TEXT("NNE ONNX CPU Runtime is not valid."));
+		ULog::Error(TEXT("SemanticParser.cpp - InitializeModel"), TEXT("NNE ONNX CPU Runtime is not valid."));
 		return false;
 	}
 	
@@ -54,7 +55,7 @@ bool USemanticParser::InitializeModel()
 	if (Model.IsValid())
 	{
 		ModelInstance = Model -> CreateModelInstanceCPU();
-		UE_LOG(LogTemp, Display, TEXT("Model loaded successfully!"));
+		ULog::Info(TEXT("SemanticParser.cpp - InitializeModel"), TEXT("Model loaded successfully!"));;
 		return ModelInstance.IsValid();
 	}
 	
@@ -63,7 +64,7 @@ bool USemanticParser::InitializeModel()
 
 bool USemanticParser::InitializeTokenizer()
 {
-	UE_LOG(LogTemp, Log, TEXT("Initializing the tokenizer"));
+	ULog::Info(TEXT("SemanticParser.cpp - InitializeTokenizer"), TEXT("Initializing the tokenizer"));
 
 	FString TokenizerFilePath = GetTokenizerFilePath();
     
@@ -71,7 +72,7 @@ bool USemanticParser::InitializeTokenizer()
 	FString JsonContent;
 	if (!FFileHelper::LoadFileToString(JsonContent, *TokenizerFilePath))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to read the file contents at: %s"), *TokenizerFilePath);
+		ULog::Error(TEXT("SemanticParser.cpp - InitializeTokenizer"), *FString::Printf(TEXT("Failed to read the file contents at: %s"), *TokenizerFilePath));
 		return false;
 	}
     
@@ -84,7 +85,7 @@ bool USemanticParser::InitializeTokenizer()
 		return true;
 	}
     
-	UE_LOG(LogTemp, Error, TEXT("Failed to parse Tokenizer JSON data."));
+	ULog::Error(TEXT("SemanticParser.cpp - InitializeTokenizer"), TEXT("Failed to parse Tokenizer JSON data."));
 	return false;
 }
 
@@ -227,7 +228,7 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 	
 	if (CachedAliasEmbeddings.IsEmpty())
 	{
-		UE_LOG(LogTemp, Error, TEXT("Error: Cache is empty!"));
+		ULog::Error(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), TEXT("Cache is empty!"));
 		return ENPCAnimationID::ACTION_NONE;
 	};
 
@@ -235,7 +236,7 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 	
 	if (!TokenizeString(PlayerInput, InputIDs))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Error: Tokenization Failed"));
+		ULog::Error(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), TEXT("Tokenization Failed"));
 		return ENPCAnimationID::ACTION_NONE;
 	};
 #if !UE_BUILD_SHIPPING
@@ -246,14 +247,14 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 		TokenString += FString::Printf(TEXT("%lld "), TokenID);
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("Raw tokens for '%s': [ %s]"), *PlayerInput, *TokenString);
+	ULog::Trace(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("Raw tokens for '%s': [ %s]"), *PlayerInput, *TokenString));
 #endif
 	
 
 	TArray<float> PlayerEmbedding = GetSemanticEmbedding(InputIDs);
 	if (PlayerEmbedding.IsEmpty())
 	{
-		UE_LOG(LogTemp, Error, TEXT("Error: Embedding Failed"));
+		ULog::Error(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), TEXT("Embedding Failed"));
 		return ENPCAnimationID::ACTION_NONE;
 	};
 
@@ -286,11 +287,11 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 	
 	if (Score < ConfidenceThreshold)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Rejected! Best match was '%s' (Score: %f) but fell below threshold of %f"), *BestAlias, Score, ConfidenceThreshold);
+		ULog::Trace(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("Rejected! Best match was '%s' (Score: %f) but fell below threshold of %f"), *BestAlias, Score, ConfidenceThreshold));
 		return ENPCAnimationID::ACTION_NONE;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("WINNER: %s via alias '%s' (Score: %f)"), *UEnum::GetValueAsString(WinningCommand), *BestAlias, Score);
+	ULog::Trace(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("WINNER: %s via alias '%s' (Score: %f)"), *UEnum::GetValueAsString(WinningCommand), *BestAlias, Score));
     
 	return WinningCommand;
 }
@@ -312,7 +313,7 @@ void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 {
 	if (!CommandTable)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Data Table is missing or is invalid!"));
+		ULog::Error(TEXT("SemanticParser.cpp - CacheEmbeddingsFromDataTable"), TEXT("Data Table is missing or is invalid!"));
 		// On-screen
 		if (GEngine)
 		{
@@ -356,7 +357,7 @@ void USemanticParser::CacheEmbeddingsFromDataTable(UDataTable* CommandTable)
 			}
 		}
 	}
-	UE_LOG(LogTemp, Warning, TEXT("Data table SUCCESS: Loaded %d aliases into memory from Data Table."), CachedAliasEmbeddings.Num());
+	ULog::Trace(TEXT("SemanticParser.cpp - CacheEmbeddingsFromDataTable"), *FString::Printf(TEXT("Data table SUCCESS: Loaded %d aliases into memory from Data Table."), CachedAliasEmbeddings.Num()));
 }
 
 bool USemanticParser::TokenizeString(const FString& InputText, TArray<int64>& OutInputIDs) const
@@ -400,7 +401,7 @@ FString USemanticParser::GetTokenizerFilePath()
 	// Verify if the file exists before trying to load it
 	if (!IFileManager::Get().FileExists(*TokenizerPath))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Tokenizer file not found: %s"), *TokenizerPath);
+		ULog::Error(TEXT("SemanticParser.cpp - GetTokenizerFilePath"), *FString::Printf(TEXT("Tokenizer file not found: %s"), *TokenizerPath));
 	}
 	
 	return TokenizerPath;

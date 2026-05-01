@@ -64,7 +64,8 @@ public class ParsingSystemUEAddon : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
-				"Projects"
+				"Projects", 
+				"UTLogger"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
