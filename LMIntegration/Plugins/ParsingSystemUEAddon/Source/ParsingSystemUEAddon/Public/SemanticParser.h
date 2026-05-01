@@ -24,6 +24,13 @@ enum class ENPCAnimationID : uint8
 	ACTION_NONE = 4 UMETA(DisplayName = "None"),
 };
 
+UENUM(BlueprintType)
+enum class EParserScorePreset : uint8
+{
+	Safe,
+	Aggressive
+};
+
 USTRUCT(BlueprintType)
 struct FAliasList
 {
@@ -234,4 +241,60 @@ private:
 	bool InitializeModel();
 	
 	static FString GetTokenizerFilePath();
+	
+	constexpr int32 EmbeddingDimension = 384;
+	constexpr int64 PadTokenId = 0;
+	constexpr int64 CLSTokenId = 101;
+	constexpr int64 SEPTokenId = 102;
+	
+	EParserScorePreset currentScorePreset = EParserScorePreset::Safe;
+	
+#pragma region Tweakable_Variables
+	constexpr float SafeAliasContainedBoost = 0.24f;
+	constexpr float SafeInputContainedBoost = 0.18f;
+	constexpr float SafeCoverageBlendWeight = 0.10f;
+	constexpr float SafeMaxLexicalBoost = 0.33f;
+	constexpr float SafeMismatchPenaltyWeight = 0.12f;
+	constexpr float SafeNoOverlapPenalty = 0.12f;
+	constexpr float SafeMaxLexicalPenalty = 0.16f;
+	constexpr float SafeAmbiguousOverlapPenalty = 0.14f;
+	constexpr float SafeMinAliasCoverageForFocusedBoost = 0.90f;
+	constexpr float SafeFocusedBlendWeight = 0.50f;
+	constexpr float SafeFocusedFallbackBlendWeight = 0.30f;
+	
+	constexpr float AggressiveAliasContainedBoost = 0.30f;
+	constexpr float AggressiveInputContainedBoost = 0.22f;
+	constexpr float AggressiveCoverageBlendWeight = 0.12f;
+	constexpr float AggressiveMaxLexicalBoost = 0.42f;
+	constexpr float AggressiveMismatchPenaltyWeight = 0.18f;
+	constexpr float AggressiveNoOverlapPenalty = 0.12f;
+	constexpr float AggressiveMaxLexicalPenalty = 0.24f;
+	constexpr float AggressiveAmbiguousOverlapPenalty = 0.14f;
+	constexpr float AggressiveMinAliasCoverageForFocusedBoost = 0.80f;
+	constexpr float AggressiveFocusedBlendWeight = 0.70f;
+	constexpr float AggressiveFocusedFallbackBlendWeight = 0.40f;
+	
+	float AliasContainedBoost;
+	float InputContainedBoost;
+	float CoverageBlendWeight;
+	float MaxLexicalBoost;
+	float MismatchPenaltyWeight;
+	float NoOverlapPenalty;
+	float MaxLexicalPenalty;
+	float AmbiguousOverlapPenalty;
+	float MinAliasCoverageForFocusedBoost;
+	float FocusedBlendWeight;
+	float FocusedFallbackBlendWeight;
+#pragma endregion
+	
+	bool IsContentToken(const int64 TokenId) const { return TokenId != PadTokenId && TokenId != CLSTokenId && TokenId != SEPTokenId; }
+	FString GetScorePresetName(EParserScorePreset Preset) const { switch (Preset) { case EParserScorePreset::Safe: return TEXT("Safe"); case EParserScorePreset::Aggressive: return TEXT("Aggressive"); default: return TEXT("Unknown"); }}
+	
+	void InitializeVariables();
+	int32 CountContentTokens(const TArray<int64>& TokenIds) const;
+	TSet<int64> ExtractContentTokenSet(const TArray<int64>& TokenIds) const;
+	TArray<int64> BuildFocusedInputIDs(const TArray<int64>& TokenIds, const TSet<int64>& AliasVocabulary) const;
+	float ComputeLexicalAdjustment(const TSet<int64>& InputTokenSet, const TSet<int64>& AliasTokenSet, float& OutAliasCoverage, float& OutInputCoverage) const;
+	static FString EscapeCsvField(const FString& Input);
 };
+
