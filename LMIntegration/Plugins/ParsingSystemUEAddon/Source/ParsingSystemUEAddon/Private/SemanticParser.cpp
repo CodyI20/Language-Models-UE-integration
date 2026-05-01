@@ -31,15 +31,10 @@ namespace
 		Safe,
 		Aggressive
 	};
-
-	EParserScorePreset GetActiveScorePreset()
-	{
-		return FParse::Param(FCommandLine::Get(), TEXT("ParsingAggressive"))
-			? EParserScorePreset::Aggressive
-			: EParserScorePreset::Safe;
-	}
-
-	const bool bAggressivePreset = GetActiveScorePreset() == EParserScorePreset::Aggressive;
+	
+	EParserScorePreset currentScorePreset = EParserScorePreset::Safe;
+	
+	const bool bAggressivePreset = currentScorePreset == EParserScorePreset::Aggressive;
 	constexpr float SafeAliasContainedBoost = 0.24f;
 	constexpr float SafeInputContainedBoost = 0.18f;
 	constexpr float SafeCoverageBlendWeight = 0.10f;
@@ -55,6 +50,7 @@ namespace
 	constexpr float AggressiveInputContainedBoost = 0.22f;
 	constexpr float AggressiveCoverageBlendWeight = 0.12f;
 	constexpr float AggressiveMaxLexicalBoost = 0.42f;
+	
 	constexpr float AggressiveMismatchPenaltyWeight = 0.18f;
 	constexpr float AggressiveNoOverlapPenalty = 0.12f;
 	constexpr float AggressiveMaxLexicalPenalty = 0.24f;
@@ -66,6 +62,7 @@ namespace
 	const float InputContainedBoost = bAggressivePreset ? AggressiveInputContainedBoost : SafeInputContainedBoost;
 	const float CoverageBlendWeight = bAggressivePreset ? AggressiveCoverageBlendWeight : SafeCoverageBlendWeight;
 	const float MaxLexicalBoost = bAggressivePreset ? AggressiveMaxLexicalBoost : SafeMaxLexicalBoost;
+	
 	const float MismatchPenaltyWeight = bAggressivePreset ? AggressiveMismatchPenaltyWeight : SafeMismatchPenaltyWeight;
 	const float NoOverlapPenalty = bAggressivePreset ? AggressiveNoOverlapPenalty : SafeNoOverlapPenalty;
 	const float MaxLexicalPenalty = bAggressivePreset ? AggressiveMaxLexicalPenalty : SafeMaxLexicalPenalty;
