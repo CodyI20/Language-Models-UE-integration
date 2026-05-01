@@ -93,10 +93,44 @@ The included automation test lives at:
 
 `Plugins/ParsingSystemUEAddon/Source/ParsingSystemUEAddon/Private/Tests/SemanticParserAutomationTests.cpp`
 
-It builds a transient evaluation table, runs the evaluation, and writes:
+It now loads test data from external sources (no hardcoded rows):
+
+- **Command aliases**: DataTable asset `/ParsingSystemUEAddon/DT_SemanticCommands.DT_SemanticCommands`
+- **Evaluation cases**: CSV `Plugins/ParsingSystemUEAddon/Content/NLP_Data/SemanticParseCasesTemplate.csv`
+  - If the CSV is missing, it falls back to DataTable asset `/ParsingSystemUEAddon/DT_SemanticParserTestCases.DT_SemanticParserTestCases`
+
+Then it runs the evaluation and writes:
 
 - `Saved/SemanticParserCalibration/evaluation-report.json`
 - `Saved/SemanticParserCalibration/evaluation-report.csv`
+
+### Running from the automation window
+
+1. Open **Tools -> Session Frontend -> Automation** in Unreal Editor.
+2. Search for `ParsingSystemUEAddon.SemanticParser.CalibrationCases`.
+3. Select it and run the test.
+4. Open the exported files in `Saved/SemanticParserCalibration/`.
+
+### Running from command line
+
+If `UnrealEditor-Cmd.exe` is available on your machine, run:
+
+```powershell
+UnrealEditor-Cmd.exe "S:\Cody Intern 2026 (February - June)\Language-Models-UE-integration\LMIntegration\LMIntegration.uproject" -nop4 -unattended -NullRHI -ExecCmds="Automation RunTests ParsingSystemUEAddon.SemanticParser.CalibrationCases; Quit"
+```
+
+### Optional overrides for custom CSV files
+
+You can pass parser test parameters in the automation command to override data files:
+
+- `CasesCsv=<absolute path to evaluation CSV>`
+- `CommandCsv=<absolute path to command alias CSV or DataTable-compatible CSV>`
+
+Example:
+
+```powershell
+UnrealEditor-Cmd.exe "S:\Cody Intern 2026 (February - June)\Language-Models-UE-integration\LMIntegration\LMIntegration.uproject" -nop4 -unattended -NullRHI -ExecCmds="Automation RunTests ParsingSystemUEAddon.SemanticParser.CalibrationCases CasesCsv=S:\Custom\SemanticParseCases.csv; Quit"
+```
 
 ## Troubleshooting
 

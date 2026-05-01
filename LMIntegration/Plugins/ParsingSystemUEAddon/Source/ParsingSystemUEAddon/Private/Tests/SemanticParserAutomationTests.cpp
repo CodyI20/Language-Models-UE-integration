@@ -1,57 +1,128 @@
 ﻿#if WITH_DEV_AUTOMATION_TESTS
 
+#include "Engine/GameInstance.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
+#include "Misc/Parse.h"
 #include "HAL/FileManager.h"
+#include "Interfaces/IPluginManager.h"
+#include "Misc/FileHelper.h"
 #include "SemanticParser.h"
 
 namespace
 {
-	void AddAliasRow(UDataTable* Table, const FName RowName, const ENPCAnimationID CommandID, const TArray<FString>& Aliases)
-	{
-		check(Table);
+	constexpr const TCHAR* CommandAliasesAssetPath = TEXT("/ParsingSystemUEAddon/DT_SemanticCommands.DT_SemanticCommands");
+	constexpr const TCHAR* EvaluationCasesAssetPath = TEXT("/ParsingSystemUEAddon/DT_SemanticParserTestCases.DT_SemanticParserTestCases");
+	constexpr const TCHAR* DefaultEvaluationCasesCsvName = TEXT("SemanticParseCasesTemplate.csv");
 
-		FCommandAliasRow Row;
-		Row.CommandID = CommandID;
-		Row.Aliases = Aliases;
-		Table->AddRow(RowName, Row);
+	FString GetPluginContentDir()
+	{
+		const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("ParsingSystemUEAddon"));
+		return Plugin.IsValid() ? Plugin->GetContentDir() : FString();
 	}
 
-	UDataTable* BuildParserTestTable()
+	bool ValidateTableRows(FAutomationTestBase& Test, UDataTable* Table, const UScriptStruct* ExpectedRowStruct, const FString& SourceLabel)
 	{
-		UDataTable* Table = NewObject<UDataTable>(GetTransientPackage(), NAME_None, RF_Transient);
-		Table->RowStruct = FCommandAliasRow::StaticStruct();
+		if (!Table)
+		{
+			Test.AddError(FString::Printf(TEXT("%s table is null."), *SourceLabel));
+			return false;
+		}
 
-		AddAliasRow(Table, TEXT("Ground"), ENPCAnimationID::ACTION_GROUND, {
-			TEXT("get down"),
-			TEXT("down"),
-			TEXT("on the ground")
-		});
+		if (Table->GetRowStruct() != ExpectedRowStruct)
+		{
+			Test.AddError(FString::Printf(
+				TEXT("%s table has incorrect row struct. Expected '%s', got '%s'."),
+				*SourceLabel,
+				*ExpectedRowStruct->GetName(),
+				Table->GetRowStruct() ? *Table->GetRowStruct()->GetName() : TEXT("None")
+			));
+			return false;
+		}
 
-		AddAliasRow(Table, TEXT("HandsUp"), ENPCAnimationID::ACTION_HANDS_UP, {
-			TEXT("hands up"),
-			TEXT("hands in the air"),
-			TEXT("put your hands up")
-		});
+		if (Table->GetRowNames().IsEmpty())
+		{
+			Test.AddError(FString::Printf(TEXT("%s table has no rows."), *SourceLabel));
+			return false;
+		}
 
-		AddAliasRow(Table, TEXT("HandsBack"), ENPCAnimationID::ACTION_HANDS_BACK, {
-			TEXT("hands back"),
-			TEXT("behind your back"),
-			TEXT("put your hands behind your back")
-		});
-
-		return Table;
+		return true;
 	}
 
-	void AddTestCaseRow(UDataTable* Table, const FName RowName, const FString& InputText, ENPCAnimationID ExpectedCommand, bool bShouldMatch)
+	UDataTable* LoadDataTableFromAsset(FAutomationTestBase& Test, const TCHAR* AssetPath, const UScriptStruct* ExpectedRowStruct, const FString& SourceLabel)
 	{
-		check(Table);
+		UDataTable* Table = LoadObject<UDataTable>(nullptr, AssetPath);
+		if (!Table)
+		{
+			Test.AddError(FString::Printf(TEXT("Failed to load %s DataTable asset at '%s'."), *SourceLabel, AssetPath));
+			return nullptr;
+		}
 
-		FSemanticParseCaseRow Row;
-		Row.InputText = InputText;
-		Row.ExpectedCommand = ExpectedCommand;
-		Row.bShouldMatch = bShouldMatch;
-		Table->AddRow(RowName, Row);
+		return ValidateTableRows(Test, Table, ExpectedRowStruct, SourceLabel) ? Table : nullptr;
+	}
+
+	UDataTable* LoadDataTableFromCsv(FAutomationTestBase& Test, const FString& CsvFilePath, const UScriptStruct* ExpectedRowStruct, const FString& SourceLabel)
+	{
+		FString CsvText;
+		if (!FFileHelper::LoadFileToString(CsvText, *CsvFilePath))
+		{
+			Test.AddError(FString::Printf(TEXT("Failed to load %s CSV from '%s'."), *SourceLabel, *CsvFilePath));
+			return nullptr;
+		}
+
+		UDataTable* CsvTable = NewObject<UDataTable>(GetTransientPackage(), NAME_None, RF_Transient);
+		CsvTable->RowStruct = const_cast<UScriptStruct*>(ExpectedRowStruct);
+
+		const TArray<FString> ImportProblems = CsvTable->CreateTableFromCSVString(CsvText);
+		if (!ImportProblems.IsEmpty())
+		{
+			for (const FString& Problem : ImportProblems)
+			{
+				Test.AddError(FString::Printf(TEXT("%s CSV parse issue: %s"), *SourceLabel, *Problem));
+			}
+			return nullptr;
+		}
+
+		return ValidateTableRows(Test, CsvTable, ExpectedRowStruct, SourceLabel) ? CsvTable : nullptr;
+	}
+
+	UDataTable* LoadDataTableWithCsvOverride(
+		FAutomationTestBase& Test,
+		const FString& Parameters,
+		const TCHAR* ParamKey,
+		const TCHAR* DefaultCsvName,
+		const TCHAR* AssetPath,
+		const UScriptStruct* ExpectedRowStruct,
+		const FString& SourceLabel)
+	{
+		FString CsvOverridePath;
+		const bool bHasOverride = FParse::Value(*Parameters, ParamKey, CsvOverridePath);
+
+		if (bHasOverride)
+		{
+			Test.AddInfo(FString::Printf(TEXT("Using %s CSV override: %s"), *SourceLabel, *CsvOverridePath));
+			return LoadDataTableFromCsv(Test, CsvOverridePath, ExpectedRowStruct, SourceLabel);
+		}
+
+		if (DefaultCsvName)
+		{
+			const FString PluginContentDir = GetPluginContentDir();
+			if (!PluginContentDir.IsEmpty())
+			{
+				const FString DefaultCsvPath = FPaths::Combine(PluginContentDir, TEXT("NLP_Data"), DefaultCsvName);
+				if (IFileManager::Get().FileExists(*DefaultCsvPath))
+				{
+					Test.AddInfo(FString::Printf(TEXT("Using %s CSV: %s"), *SourceLabel, *DefaultCsvPath));
+					if (UDataTable* CsvTable = LoadDataTableFromCsv(Test, DefaultCsvPath, ExpectedRowStruct, SourceLabel))
+					{
+						return CsvTable;
+					}
+				}
+			}
+		}
+
+		Test.AddInfo(FString::Printf(TEXT("Using %s DataTable asset: %s"), *SourceLabel, AssetPath));
+		return LoadDataTableFromAsset(Test, AssetPath, ExpectedRowStruct, SourceLabel);
 	}
 }
 
@@ -63,7 +134,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 {
-	USemanticParser* Parser = NewObject<USemanticParser>(GetTransientPackage());
+	UGameInstance* TestGameInstance = NewObject<UGameInstance>(GetTransientPackage(), NAME_None, RF_Transient);
+	TestNotNull(TEXT("Test game instance should be created"), TestGameInstance);
+	if (!TestGameInstance)
+	{
+		return false;
+	}
+
+	USemanticParser* Parser = NewObject<USemanticParser>(TestGameInstance);
 	TestNotNull(TEXT("Parser object should be created"), Parser);
 	if (!Parser)
 	{
@@ -76,34 +154,38 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UDataTable* Table = BuildParserTestTable();
-	TestNotNull(TEXT("Evaluation data table should be created"), Table);
-	if (!Table)
+	UDataTable* CommandTable = LoadDataTableWithCsvOverride(
+		*this,
+		Parameters,
+		TEXT("CommandCsv="),
+		nullptr,
+		CommandAliasesAssetPath,
+		FCommandAliasRow::StaticStruct(),
+		TEXT("Command aliases"));
+	TestNotNull(TEXT("Command aliases table should be loaded"), CommandTable);
+	if (!CommandTable)
 	{
 		return false;
 	}
 
-	Parser->CacheEmbeddingsFromDataTable(Table);
+	Parser->CacheEmbeddingsFromDataTable(CommandTable);
 
-	UDataTable* CasesTable = NewObject<UDataTable>(GetTransientPackage(), NAME_None, RF_Transient);
-	CasesTable->RowStruct = FSemanticParseCaseRow::StaticStruct();
+	UDataTable* CasesTable = LoadDataTableWithCsvOverride(
+		*this,
+		Parameters,
+		TEXT("CasesCsv="),
+		nullptr,
+		EvaluationCasesAssetPath,
+		FSemanticParseCaseRow::StaticStruct(),
+		TEXT("Evaluation cases"));
+	TestNotNull(TEXT("Evaluation cases table should be loaded"), CasesTable);
+	if (!CasesTable)
+	{
+		return false;
+	}
 
-	AddTestCaseRow(CasesTable, TEXT("Case_Ground_GetDown"), TEXT("get down"), ENPCAnimationID::ACTION_GROUND, true);
-	AddTestCaseRow(CasesTable, TEXT("Case_Ground_Down"), TEXT("down"), ENPCAnimationID::ACTION_GROUND, true);
-	AddTestCaseRow(CasesTable, TEXT("Case_Ground_ExtraWords"), TEXT("please go down now"), ENPCAnimationID::ACTION_GROUND, true);
-	AddTestCaseRow(CasesTable, TEXT("Case_Ground_FalsePositive"), TEXT("move the chair"), ENPCAnimationID::ACTION_GROUND, false);
 
-	AddTestCaseRow(CasesTable, TEXT("Case_HandsUp_Exact"), TEXT("hands up"), ENPCAnimationID::ACTION_HANDS_UP, true);
-	AddTestCaseRow(CasesTable, TEXT("Case_HandsUp_Synonym"), TEXT("hands in the air"), ENPCAnimationID::ACTION_HANDS_UP, true);
-	AddTestCaseRow(CasesTable, TEXT("Case_HandsUp_NameNoise"), TEXT("Peter, hands up."), ENPCAnimationID::ACTION_HANDS_UP, true);
-	AddTestCaseRow(CasesTable, TEXT("Case_HandsUp_FalsePositive"), TEXT("pen in the air"), ENPCAnimationID::ACTION_NONE, false);
-
-	AddTestCaseRow(CasesTable, TEXT("Case_HandsBack_Exact"), TEXT("hands back"), ENPCAnimationID::ACTION_HANDS_BACK, true);
-	AddTestCaseRow(CasesTable, TEXT("Case_HandsBack_Synonym"), TEXT("put your hands behind your back"), ENPCAnimationID::ACTION_HANDS_BACK, true);
-	AddTestCaseRow(CasesTable, TEXT("Case_HandsBack_Partial"), TEXT("behind your back"), ENPCAnimationID::ACTION_HANDS_BACK, true);
-	AddTestCaseRow(CasesTable, TEXT("Case_HandsBack_FalsePositive"), TEXT("hands in the air again"), ENPCAnimationID::ACTION_NONE, false);
-
-	const FSemanticParseEvaluationReport Report = Parser->EvaluateParsingCasesFromDataTable(CasesTable, 0.65f, 0.08f);
+	const FSemanticParseEvaluationReport Report = Parser->EvaluateParsingCasesFromDataTable(CasesTable, 0.65f, 0.10f);
 
 	AddInfo(FString::Printf(TEXT("Semantic parser evaluation: %d/%d passed, avg best score=%0.4f, false positives=%d, false negatives=%d"),
 		Report.PassedCases,
@@ -127,13 +209,42 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 
 	for (const FSemanticParseScoreReport& CaseReport : Report.CaseReports)
 	{
-		AddInfo(FString::Printf(TEXT("Case='%s' Best='%s' Command=%s Score=%0.4f RunnerUp=%0.4f Margin=%0.4f"),
+		const bool bAccepted =
+			(CaseReport.BestCommand != ENPCAnimationID::ACTION_NONE) &&
+			(CaseReport.BestScore >= 0.65f) &&
+			(CaseReport.Margin >= 0.10f);
+
+		if (CaseReport.ExpectedCommand == ENPCAnimationID::ACTION_NONE && bAccepted)
+		{
+			AddError(FString::Printf(
+				TEXT("Expected ACTION_NONE case was accepted by thresholds: Input='%s'; Actual=%s; Score=%0.4f; Margin=%0.4f"),
+				*CaseReport.InputText,
+				*UEnum::GetValueAsString(CaseReport.BestCommand),
+				CaseReport.BestScore,
+				CaseReport.Margin));
+		}
+
+		if (!CaseReport.bPassed)
+		{
+			AddError(FString::Printf(
+				TEXT("FAILED CASE: Input='%s'; Expected=%s; Actual=%s; BestAlias='%s'; BestScore=%0.4f; RunnerUpCommand=%s; RunnerUpScore=%0.4f; Margin=%0.4f"),
+				*CaseReport.InputText,
+				*UEnum::GetValueAsString(CaseReport.ExpectedCommand),
+				*UEnum::GetValueAsString(CaseReport.BestCommand),
+				*CaseReport.BestAlias,
+				CaseReport.BestScore,
+				*UEnum::GetValueAsString(CaseReport.RunnerUpCommand),
+				CaseReport.RunnerUpScore,
+				CaseReport.Margin));
+		}else
+		{
+			AddInfo(FString::Printf(TEXT("Input='%s'; Passed Command=%s; Score=%0.4f; RunnerUp=%0.4f; Margin=%0.4f"),
 			*CaseReport.InputText,
-			*CaseReport.BestAlias,
 			*UEnum::GetValueAsString(CaseReport.BestCommand),
 			CaseReport.BestScore,
 			CaseReport.RunnerUpScore,
 			CaseReport.Margin));
+		}
 	}
 
 	TestEqual(TEXT("All semantic parser calibration cases should pass"), Report.PassedCases, Report.TotalCases);
