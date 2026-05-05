@@ -12,6 +12,7 @@
 #include "Logging/LogMacros.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "whisper.h"
+#include "Core/Log.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTranscription, Log, All);
 
@@ -24,11 +25,11 @@ static void WhisperLogCallback(ggml_log_level level, const char * text, void * u
     if (LogText.IsEmpty()) return;
     
     if (level == GGML_LOG_LEVEL_ERROR) {
-        UE_LOG(LogTranscription, Error, TEXT("WHISPER: %s"), *LogText);
+        ULog::Error(TEXT("SpeechToTextLibrary.cpp - WhisperLogCallback"), *LogText);
     } else if (level == GGML_LOG_LEVEL_WARN) {
-        UE_LOG(LogTranscription, Warning, TEXT("WHISPER: %s"), *LogText);
+        ULog::Warning(TEXT("SpeechToTextLibrary.cpp - WhisperLogCallback"), *LogText);
     } else {
-        UE_LOG(LogTranscription, Log, TEXT("WHISPER: %s"), *LogText);
+        ULog::Info(TEXT("SpeechToTextLibrary.cpp - WhisperLogCallback"), *LogText);
     }
 }
 
@@ -323,16 +324,16 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         if (Config.UseGPU && bGPUAvailable)
         {
             Cparams.use_gpu = true;
-            UE_LOG(LogTranscription, Log, TEXT("Transcribing audio using CUDA GPU acceleration"));
+            ULog::Info(TEXT("SpeechToTextLibrary.cpp - TranscribeAudioInternal"), TEXT("Transcribing audio using CUDA GPU acceleration"));
         }
         else
         {
             Cparams.use_gpu = false;
             
             if (Config.UseGPU && !bGPUAvailable) {
-                UE_LOG(LogTranscription, Log, TEXT("GPU acceleration requested but not available - falling back to CPU"));
+                ULog::Warning(TEXT("SpeechToTextLibrary.cpp - TranscribeAudioInternal"), TEXT("GPU acceleration requested but not available - falling back to CPU"));
             } else {
-                UE_LOG(LogTranscription, Log, TEXT("Transcribing audio using CPU only (GPU acceleration disabled)"));
+                ULog::Warning(TEXT("SpeechToTextLibrary.cpp - TranscribeAudioInternal"), TEXT("Transcribing audio using CPU only (GPU acceleration disabled)"));
             }
         }
         // Captures all internal whisper/ggml errors

@@ -242,37 +242,37 @@ private:
 	
 	static FString GetTokenizerFilePath();
 	
-	constexpr int32 EmbeddingDimension = 384;
-	constexpr int64 PadTokenId = 0;
-	constexpr int64 CLSTokenId = 101;
-	constexpr int64 SEPTokenId = 102;
+	const int32 EmbeddingDimension = 384;
+	const int64 PadTokenId = 0;
+	const int64 CLSTokenId = 101;
+	const int64 SEPTokenId = 102;
 	
 	EParserScorePreset currentScorePreset = EParserScorePreset::Safe;
 	
 #pragma region Tweakable_Variables
-	constexpr float SafeAliasContainedBoost = 0.24f;
-	constexpr float SafeInputContainedBoost = 0.18f;
-	constexpr float SafeCoverageBlendWeight = 0.10f;
-	constexpr float SafeMaxLexicalBoost = 0.33f;
-	constexpr float SafeMismatchPenaltyWeight = 0.12f;
-	constexpr float SafeNoOverlapPenalty = 0.12f;
-	constexpr float SafeMaxLexicalPenalty = 0.16f;
-	constexpr float SafeAmbiguousOverlapPenalty = 0.14f;
-	constexpr float SafeMinAliasCoverageForFocusedBoost = 0.90f;
-	constexpr float SafeFocusedBlendWeight = 0.50f;
-	constexpr float SafeFocusedFallbackBlendWeight = 0.30f;
+	const float SafeAliasContainedBoost = 0.24f;
+	const float SafeInputContainedBoost = 0.18f;
+	const float SafeCoverageBlendWeight = 0.10f;
+	const float SafeMaxLexicalBoost = 0.33f;
+	const float SafeMismatchPenaltyWeight = 0.12f;
+	const float SafeNoOverlapPenalty = 0.12f;
+	const float SafeMaxLexicalPenalty = 0.16f;
+	const float SafeAmbiguousOverlapPenalty = 0.14f;
+	const float SafeMinAliasCoverageForFocusedBoost = 0.90f;
+	const float SafeFocusedBlendWeight = 0.50f;
+	const float SafeFocusedFallbackBlendWeight = 0.30f;
 	
-	constexpr float AggressiveAliasContainedBoost = 0.30f;
-	constexpr float AggressiveInputContainedBoost = 0.22f;
-	constexpr float AggressiveCoverageBlendWeight = 0.12f;
-	constexpr float AggressiveMaxLexicalBoost = 0.42f;
-	constexpr float AggressiveMismatchPenaltyWeight = 0.18f;
-	constexpr float AggressiveNoOverlapPenalty = 0.12f;
-	constexpr float AggressiveMaxLexicalPenalty = 0.24f;
-	constexpr float AggressiveAmbiguousOverlapPenalty = 0.14f;
-	constexpr float AggressiveMinAliasCoverageForFocusedBoost = 0.80f;
-	constexpr float AggressiveFocusedBlendWeight = 0.70f;
-	constexpr float AggressiveFocusedFallbackBlendWeight = 0.40f;
+	const float AggressiveAliasContainedBoost = 0.30f;
+	const float AggressiveInputContainedBoost = 0.22f;
+	const float AggressiveCoverageBlendWeight = 0.12f;
+	const float AggressiveMaxLexicalBoost = 0.42f;
+	const float AggressiveMismatchPenaltyWeight = 0.18f;
+	const float AggressiveNoOverlapPenalty = 0.12f;
+	const float AggressiveMaxLexicalPenalty = 0.24f;
+	const float AggressiveAmbiguousOverlapPenalty = 0.14f;
+	const float AggressiveMinAliasCoverageForFocusedBoost = 0.80f;
+	const float AggressiveFocusedBlendWeight = 0.70f;
+	const float AggressiveFocusedFallbackBlendWeight = 0.40f;
 	
 	float AliasContainedBoost;
 	float InputContainedBoost;

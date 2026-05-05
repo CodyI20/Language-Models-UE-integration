@@ -79,7 +79,7 @@ public class UESTT : ModuleRules
         });
         PrivateDependencyModuleNames.AddRange(new string[]
         {
-            "EnhancedInput"
+            "EnhancedInput", "UTLogger"
         });
     }
 }

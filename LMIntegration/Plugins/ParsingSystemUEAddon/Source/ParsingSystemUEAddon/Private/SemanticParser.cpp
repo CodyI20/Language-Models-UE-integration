@@ -348,12 +348,7 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 
 		const float AdjustedScore = FMath::Clamp(SimilarityScore + LexicalAdjustment, -1.0f, 1.0f);
 #if !UE_BUILD_SHIPPING
-		UE_LOG(
-			LogTemp,
-			Verbose,
-			TEXT(
-				"Alias='%s' Command=%s RawSemantic=%0.4f FocusedSemantic=%0.4f ChosenSemantic=%0.4f AliasCoverage=%0.4f InputCoverage=%0.4f LexicalAdjust=%0.4f Final=%0.4f"
-			),
+		ULog::Trace(TEXT("SemanticParser.cpp - GetBestMatchingCommandReport"), *FString::Printf(TEXT("Alias='%s' Command=%s RawSemantic=%0.4f FocusedSemantic=%0.4f ChosenSemantic=%0.4f AliasCoverage=%0.4f InputCoverage=%0.4f LexicalAdjust=%0.4f Final=%0.4f"),
 			*AliasText,
 			*UEnum::GetValueAsString(*FoundCommand),
 			RawSimilarityScore,
@@ -362,7 +357,7 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 			AliasCoverage,
 			InputCoverage,
 			LexicalAdjustment,
-			AdjustedScore
+			AdjustedScore)
 		);
 #endif
 
@@ -419,51 +414,24 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 
 	if (Report.BestScore < ConfidenceThreshold)
 	{
-		UE_LOG(LogTemp, Warning,
-		       TEXT("Rejected! Best match was '%s' for command: '%s' (Score: %f) but fell below threshold of %f"),
-		       *Report.BestAlias, *UEnum::GetValueAsString(Report.BestCommand), Report.BestScore, ConfidenceThreshold);
+		ULog::Warning(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("Rejected! Best match was '%s' for command: '%s' (Score: %f) but fell below threshold of %f"),
+		       *Report.BestAlias, *UEnum::GetValueAsString(Report.BestCommand), Report.BestScore, ConfidenceThreshold));
 		return ENPCAnimationID::ACTION_NONE;
 	}
 
 	if (Report.Margin < MinimumMargin)
 	{
-		UE_LOG(
-			LogTemp,
-			Warning,
-			TEXT(
-				"Rejected! Best match was '%s' (%s, Score: %f) but competing command %s scored %f (Margin: %f, min: %f)"
-			),
-			*Report.BestAlias,
-			*UEnum::GetValueAsString(Report.BestCommand),
-			Report.BestScore,
-			*UEnum::GetValueAsString(Report.RunnerUpCommand),
-			Report.RunnerUpScore,
-			Report.Margin,
-			MinimumMargin
-		);
+		ULog::Error(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("Rejected! Best match was '%s' (%s, Score: %f) but competing command %s scored %f (Margin: %f, min: %f)"),
+		       *Report.BestAlias, *UEnum::GetValueAsString(Report.BestCommand), Report.BestScore, *UEnum::GetValueAsString(Report.RunnerUpCommand), Report.RunnerUpScore, Report.Margin, MinimumMargin));
 		return ENPCAnimationID::ACTION_NONE;
 	}
-
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT("WINNER: %s via alias '%s' (Score: %f, Margin vs %s: %f)"),
-		*UEnum::GetValueAsString(Report.BestCommand),
-		*Report.BestAlias,
-		Report.BestScore,
-		*UEnum::GetValueAsString(Report.RunnerUpCommand),
-		Report.Margin
-	);
+	ULog::Info(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("WINNER: %s via alias '%s' (Score: %f, Margin vs %s: %f)"),
+		       *UEnum::GetValueAsString(Report.BestCommand), *Report.BestAlias, Report.BestScore, *UEnum::GetValueAsString(Report.RunnerUpCommand), Report.Margin));
 #if !UE_BUILD_SHIPPING
 	static bool bLoggedScorePreset = false;
 	if (!bLoggedScorePreset)
 	{
-		UE_LOG(
-			LogTemp,
-			Verbose,
-			TEXT("Semantic parser score preset: %s"),
-			*GetScorePresetName(currentScorePreset)
-		);
+		ULog::Trace(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("Score preset: %s"), *GetScorePresetName(currentScorePreset)));
 		bLoggedScorePreset = true;
 	}
 #endif
@@ -523,20 +491,16 @@ FSemanticParseEvaluationReport USemanticParser::EvaluateParsingCases(const TArra
 		Evaluation.FailedCases += bPassed ? 0 : 1;
 
 #if !UE_BUILD_SHIPPING
-		UE_LOG(
-			LogTemp,
-			Verbose,
-			TEXT(
-				"EvalCase='%s' Expected=%s ExpectedRejection=%s Actual=%s Accepted=%s BestScore=%0.4f Margin=%0.4f Result=%s"
-			),
-			*TestCase.InputText,
-			*UEnum::GetValueAsString(TestCase.ExpectedCommand),
-			bExpectedRejection ? TEXT("true") : TEXT("false"),
-			*UEnum::GetValueAsString(Report.BestCommand),
-			bAccepted ? TEXT("true") : TEXT("false"),
-			Report.BestScore,
-			Report.Margin,
-			bPassed ? TEXT("PASS") : TEXT("FAIL")
+		ULog::Trace(TEXT("SemanticParser.cpp - EvaluateParsingCases"), *FString::Printf(TEXT("Detailed report for case '%s': Expected=%s, BestMatch=%s (Alias: '%s', Score: %f), RunnerUp=%s (Score: %f), Margin=%f, Passed=%s"),
+		       *TestCase.InputText,
+		       *UEnum::GetValueAsString(TestCase.ExpectedCommand),
+		       *UEnum::GetValueAsString(Report.BestCommand),
+		       *Report.BestAlias,
+		       Report.BestScore,
+		       *UEnum::GetValueAsString(Report.RunnerUpCommand),
+		       Report.RunnerUpScore,
+		       Report.Margin,
+		       bPassed ? TEXT("true") : TEXT("false"))
 		);
 #endif
 	}
@@ -554,7 +518,7 @@ FSemanticParseEvaluationReport USemanticParser::EvaluateParsingCasesFromDataTabl
 {
 	if (!EvaluationTable)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Evaluation table is missing or invalid!"));
+		ULog::Error(TEXT("SemanticParser.cpp - EvaluateParsingCasesFromDataTable"), TEXT("Evaluation table is missing or invalid!"));
 		return FSemanticParseEvaluationReport();
 	}
 
@@ -588,7 +552,7 @@ FString USemanticParser::ExportEvaluationReportToJson(const FSemanticParseEvalua
 	if (!FJsonObjectConverter::UStructToJsonObjectString(FSemanticParseEvaluationReport::StaticStruct(), &Report,
 	                                                     JsonOutput, 0, 0, Indent))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to convert evaluation report to JSON."));
+		ULog::Error(TEXT("SemanticParser.cpp - ExportEvaluationReportToJson"), TEXT("Failed to convert evaluation report to JSON."));
 		return TEXT("");
 	}
 
@@ -596,7 +560,7 @@ FString USemanticParser::ExportEvaluationReportToJson(const FSemanticParseEvalua
 	{
 		if (!FFileHelper::SaveStringToFile(JsonOutput, *OutputFilePath))
 		{
-			UE_LOG(LogTemp, Error, TEXT("Failed to save evaluation JSON to: %s"), *OutputFilePath);
+			ULog::Error(TEXT("SemanticParser.cpp - ExportEvaluationReportToJson"), FString::Printf(TEXT("Failed to save evaluation JSON to: %s"), *OutputFilePath));
 		}
 	}
 
@@ -627,7 +591,8 @@ FString USemanticParser::ExportEvaluationReportToCsv(const FSemanticParseEvaluat
 	{
 		if (!FFileHelper::SaveStringToFile(CsvOutput, *OutputFilePath))
 		{
-			UE_LOG(LogTemp, Error, TEXT("Failed to save evaluation CSV to: %s"), *OutputFilePath);
+			ULog::Error(TEXT("SemanticParser.cpp - ExportEvaluationReportToCsv"), FString::Printf(TEXT("Failed to save evaluation CSV to: %s"), *OutputFilePath));
+			return FString();
 		}
 	}
 

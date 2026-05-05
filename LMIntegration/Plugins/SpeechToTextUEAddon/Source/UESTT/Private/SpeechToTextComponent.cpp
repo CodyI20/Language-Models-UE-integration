@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "Core/Log.h"
 #include "HAL/PlatformFileManager.h"
 #include "Engine/World.h"
 #include "Engine/LocalPlayer.h"
@@ -50,10 +51,7 @@ void USpeechToTextComponent::SetFullAudioFilePath()
 	if (WavFileDirectory.IsEmpty() || RecordingName.IsEmpty())
 	{
 		FString ErrorMessage = TEXT("Audio file path INACCESSIBLE! Either the wav file directory OR the recording name is invalid!");
-		UE_LOG(LogTemp, Error, TEXT("%s"), *ErrorMessage);
-		// On-screen
-		UKismetSystemLibrary::PrintString(this, *ErrorMessage,
-	true, false, FLinearColor::Red, 100.f, NAME_Error);
+		ULog::Error(TEXT("SpeechToTextComponent.cpp - SetFullAudioFilePath"), *ErrorMessage);
 		return;
 	}
 	AudioFilePath =  FPaths::Combine(WavFileDirectory,FString::Printf(TEXT("%s.wav"), *RecordingName));
@@ -70,7 +68,7 @@ void USpeechToTextComponent::BeginPlay()
 	AActor* OwningActor = GetOwner();
 	if (!OwningActor)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Actor is NULL"));
+		ULog::Error(TEXT("SpeechToTextComponent.cpp - BeginPlay"), TEXT("Actor is NULL"));
 		return;
 	}
 	
@@ -83,7 +81,7 @@ void USpeechToTextComponent::BeginPlay()
 	
 	if (!AudioCapture)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Audio Capture Component is NULL"));
+		ULog::Error(TEXT("SpeechToTextComponent.cpp - BeginPlay"), TEXT("Audio Capture Component is NULL"));
 		return;
 	}
 	
@@ -102,10 +100,7 @@ void USpeechToTextComponent::BeginPlay()
 				TEXT("/SpeechToText/Input/IMC_SpeechToText.IMC_SpeechToText"));
 			if (!MappingContext)
 			{
-				UE_LOG(LogTemp, Error, TEXT("The mapping context doesn't exist at the default path or it has been moved!"));
-				// On-screen
-				UKismetSystemLibrary::PrintString(this, TEXT("The mapping context doesn't exist at the default path or it has been moved!"),
-			true, false, FLinearColor::Red, 100.f, NAME_Error);
+				ULog::Error(TEXT("SpeechToTextComponent.cpp - BeginPlay"), TEXT("The mapping context doesn't exist at the default path or it has been moved!"));
 				return;
 			}
 			FModifyContextOptions Options;
