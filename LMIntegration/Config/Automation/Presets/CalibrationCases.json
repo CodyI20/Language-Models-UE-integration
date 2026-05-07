@@ -1,0 +1,7 @@
+{
+	"id": "CalibrationCases",
+	"name": "CalibrationCases",
+	"enabledTests": [
+		"ParsingSystemUEAddon.SemanticParser.CalibrationCases"
+	]
+}

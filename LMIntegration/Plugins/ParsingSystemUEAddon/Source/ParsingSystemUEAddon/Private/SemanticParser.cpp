@@ -395,7 +395,8 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 	Report.RunnerUpScore = RunnerUpScore;
 	Report.RunnerUpCommand = RunnerUpCommand;
 	Report.Margin = (RunnerUpScore < -0.5f) ? BestScore : (BestScore - RunnerUpScore);
-
+	Report.ScorePreset = TweakableSettings.ScorePreset;
+	
 	return Report;
 }
 
@@ -406,18 +407,22 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 	// Lock the function until the thread is done
 	FScopeLock Lock(&InferenceMutex);
 
-	const FSemanticParseScoreReport Report = GetBestMatchingCommandReport(PlayerInput);
+	FSemanticParseScoreReport Report = GetBestMatchingCommandReport(PlayerInput);
 	if (Report.BestCommand == ENPCAnimationID::ACTION_NONE)
 	{
 		return ENPCAnimationID::ACTION_NONE;
 	}
-
+	
+	Report.ConfidenceThreshold = ConfidenceThreshold;
+	
 	if (Report.BestScore < ConfidenceThreshold)
 	{
 		ULog::Warning(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("Rejected! Best match was '%s' for command: '%s' (Score: %f) but fell below threshold of %f"),
 		       *Report.BestAlias, *UEnum::GetValueAsString(Report.BestCommand), Report.BestScore, ConfidenceThreshold));
 		return ENPCAnimationID::ACTION_NONE;
 	}
+	
+	Report.MinimumMargin = MinimumMargin;
 
 	if (Report.Margin < MinimumMargin)
 	{
@@ -431,7 +436,7 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 	static bool bLoggedScorePreset = false;
 	if (!bLoggedScorePreset)
 	{
-		ULog::Trace(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("Score preset: %s"), *GetScorePresetName(currentScorePreset)));
+		ULog::Trace(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("Score preset: %s"), *GetScorePresetName(TweakableSettings.ScorePreset)));
 		bLoggedScorePreset = true;
 	}
 #endif
@@ -729,34 +734,34 @@ FString USemanticParser::GetTokenizerFilePath()
 
 void USemanticParser::InitializeVariables()
 {
-	switch (currentScorePreset)
+	switch (TweakableSettings.ScorePreset)
 	{
 	case EParserScorePreset::Aggressive:
-		AliasContainedBoost = AggressiveAliasContainedBoost;
-		InputContainedBoost = AggressiveInputContainedBoost;
-		CoverageBlendWeight = AggressiveCoverageBlendWeight;
-		MaxLexicalBoost = AggressiveMaxLexicalBoost;
-		MismatchPenaltyWeight = AggressiveMismatchPenaltyWeight;
-		NoOverlapPenalty = AggressiveNoOverlapPenalty;
-		MaxLexicalPenalty = AggressiveMaxLexicalPenalty;
-		AmbiguousOverlapPenalty = AggressiveAmbiguousOverlapPenalty;
-		MinAliasCoverageForFocusedBoost = AggressiveMinAliasCoverageForFocusedBoost;
-		FocusedBlendWeight = AggressiveFocusedBlendWeight;
-		FocusedFallbackBlendWeight = AggressiveFocusedFallbackBlendWeight;
+		AliasContainedBoost = TweakableSettings.AggressiveAliasContainedBoost;
+		InputContainedBoost = TweakableSettings.AggressiveInputContainedBoost;
+		CoverageBlendWeight = TweakableSettings.AggressiveCoverageBlendWeight;
+		MaxLexicalBoost = TweakableSettings.AggressiveMaxLexicalBoost;
+		MismatchPenaltyWeight = TweakableSettings.AggressiveMismatchPenaltyWeight;
+		NoOverlapPenalty = TweakableSettings.AggressiveNoOverlapPenalty;
+		MaxLexicalPenalty = TweakableSettings.AggressiveMaxLexicalPenalty;
+		AmbiguousOverlapPenalty = TweakableSettings.AggressiveAmbiguousOverlapPenalty;
+		MinAliasCoverageForFocusedBoost = TweakableSettings.AggressiveMinAliasCoverageForFocusedBoost;
+		FocusedBlendWeight = TweakableSettings.AggressiveFocusedBlendWeight;
+		FocusedFallbackBlendWeight = TweakableSettings.AggressiveFocusedFallbackBlendWeight;
 		break;
 
 	case EParserScorePreset::Safe:
-		AliasContainedBoost = SafeAliasContainedBoost;
-		InputContainedBoost = SafeInputContainedBoost;
-		CoverageBlendWeight = SafeCoverageBlendWeight;
-		MaxLexicalBoost = SafeMaxLexicalBoost;
-		MismatchPenaltyWeight = SafeMismatchPenaltyWeight;
-		NoOverlapPenalty = SafeNoOverlapPenalty;
-		MaxLexicalPenalty = SafeMaxLexicalPenalty;
-		AmbiguousOverlapPenalty = SafeAmbiguousOverlapPenalty;
-		MinAliasCoverageForFocusedBoost = SafeMinAliasCoverageForFocusedBoost;
-		FocusedBlendWeight = SafeFocusedBlendWeight;
-		FocusedFallbackBlendWeight = SafeFocusedFallbackBlendWeight;
+		AliasContainedBoost = TweakableSettings.SafeAliasContainedBoost;
+		InputContainedBoost = TweakableSettings.SafeInputContainedBoost;
+		CoverageBlendWeight = TweakableSettings.SafeCoverageBlendWeight;
+		MaxLexicalBoost = TweakableSettings.SafeMaxLexicalBoost;
+		MismatchPenaltyWeight = TweakableSettings.SafeMismatchPenaltyWeight;
+		NoOverlapPenalty = TweakableSettings.SafeNoOverlapPenalty;
+		MaxLexicalPenalty = TweakableSettings.SafeMaxLexicalPenalty;
+		AmbiguousOverlapPenalty = TweakableSettings.SafeAmbiguousOverlapPenalty;
+		MinAliasCoverageForFocusedBoost = TweakableSettings.SafeMinAliasCoverageForFocusedBoost;
+		FocusedBlendWeight = TweakableSettings.SafeFocusedBlendWeight;
+		FocusedFallbackBlendWeight = TweakableSettings.SafeFocusedFallbackBlendWeight;
 		break;
 	}
 }

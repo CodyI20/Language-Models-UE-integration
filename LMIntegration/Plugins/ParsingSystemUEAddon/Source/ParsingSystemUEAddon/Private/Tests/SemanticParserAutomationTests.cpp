@@ -180,8 +180,7 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-
-	const FSemanticParseEvaluationReport Report = Parser->EvaluateParsingCasesFromDataTable(CasesTable, 0.65f, 0.10f);
+	const FSemanticParseEvaluationReport Report = Parser->EvaluateParsingCasesFromDataTable(CasesTable, Report.CaseReports[0].ConfidenceThreshold, Report.CaseReports[0].MinimumMargin);
 
 	AddInfo(FString::Printf(TEXT("Semantic parser evaluation: %d/%d passed, avg best score=%0.4f, false positives=%d, false negatives=%d"),
 		Report.PassedCases,
@@ -207,8 +206,8 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 	{
 		const bool bAccepted =
 			(CaseReport.BestCommand != ENPCAnimationID::ACTION_NONE) &&
-			(CaseReport.BestScore >= 0.65f) &&
-			(CaseReport.Margin >= 0.10f);
+			(CaseReport.BestScore >= CaseReport.ConfidenceThreshold) &&
+			(CaseReport.Margin >= CaseReport.MinimumMargin);
 
 		if (CaseReport.ExpectedCommand == ENPCAnimationID::ACTION_NONE && bAccepted)
 		{
@@ -223,7 +222,7 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 		if (!CaseReport.bPassed)
 		{
 			AddError(FString::Printf(
-				TEXT("FAILED CASE: Input='%s'; Expected=%s; Actual=%s; BestAlias='%s'; BestScore=%0.4f; RunnerUpCommand=%s; RunnerUpScore=%0.4f; Margin=%0.4f"),
+				TEXT("FAILED CASE: Input='%s'; Expected=%s; Actual=%s; BestAlias='%s'; BestScore=%0.4f; RunnerUpCommand=%s; RunnerUpScore=%0.4f; Margin=%0.4f; PresetUsed=%s"),
 				*CaseReport.InputText,
 				*UEnum::GetValueAsString(CaseReport.ExpectedCommand),
 				*UEnum::GetValueAsString(CaseReport.BestCommand),
@@ -231,15 +230,17 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 				CaseReport.BestScore,
 				*UEnum::GetValueAsString(CaseReport.RunnerUpCommand),
 				CaseReport.RunnerUpScore,
-				CaseReport.Margin));
+				CaseReport.Margin,
+				*UEnum::GetValueAsString(CaseReport.ScorePreset)));
 		}else
 		{
-			AddInfo(FString::Printf(TEXT("Input='%s'; Passed Command=%s; Score=%0.4f; RunnerUp=%0.4f; Margin=%0.4f"),
+			AddInfo(FString::Printf(TEXT("SUCCESSFUL CASE: Input='%s'; Passed Command=%s; Score=%0.4f; RunnerUp=%0.4f; Margin=%0.4f; PresetUsed=%s"),
 			*CaseReport.InputText,
 			*UEnum::GetValueAsString(CaseReport.BestCommand),
 			CaseReport.BestScore,
 			CaseReport.RunnerUpScore,
-			CaseReport.Margin));
+			CaseReport.Margin,
+			*UEnum::GetValueAsString(CaseReport.ScorePreset)));
 		}
 	}
 
@@ -251,4 +252,3 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
-
