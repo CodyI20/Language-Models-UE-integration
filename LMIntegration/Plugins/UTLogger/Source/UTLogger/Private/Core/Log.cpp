@@ -113,19 +113,7 @@ void ULog::LogToScreen(const FColor Color, const FString Tag, const FString Text
  * @param Type The log type to convert
  * @return A user friendly name for the log type
  */
-FString ULog::GetLogTypeText(const ELogType Type)
+FString ULog::GetLogTypeText(const ELogType Type) 
 {
-	switch (Type)
-	{
-	case ELogType::Error:
-		return " [Error] ";
-	case ELogType::Warning:
-		return " [Warning] ";
-	case ELogType::Info:
-		return  " [Info] ";
-	case ELogType::Trace:
-		return " [Trace] ";
-	default:
-		return " [Unknown] ";
-	}
+	return FString::Printf(TEXT(" [%s] "), *UEnum::GetValueAsString(Type));
 }

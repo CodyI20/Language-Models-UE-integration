@@ -185,8 +185,8 @@ struct FSemanticParserTweakableSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
 	float SafeAmbiguousOverlapPenalty = 0.14f;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")
-
 	float SafeMinAliasCoverageForFocusedBoost = 0.90f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Semantic Parsing")

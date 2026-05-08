@@ -414,14 +414,14 @@ ENPCAnimationID USemanticParser::GetBestMatchingCommand(const FString& PlayerInp
 	}
 	
 	Report.ConfidenceThreshold = ConfidenceThreshold;
-	
+
 	if (Report.BestScore < ConfidenceThreshold)
 	{
 		ULog::Warning(TEXT("SemanticParser.cpp - GetBestMatchingCommand"), *FString::Printf(TEXT("Rejected! Best match was '%s' for command: '%s' (Score: %f) but fell below threshold of %f"),
 		       *Report.BestAlias, *UEnum::GetValueAsString(Report.BestCommand), Report.BestScore, ConfidenceThreshold));
 		return ENPCAnimationID::ACTION_NONE;
 	}
-	
+
 	Report.MinimumMargin = MinimumMargin;
 
 	if (Report.Margin < MinimumMargin)

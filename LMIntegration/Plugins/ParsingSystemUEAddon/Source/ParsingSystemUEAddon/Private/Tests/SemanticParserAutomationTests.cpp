@@ -180,7 +180,7 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	const FSemanticParseEvaluationReport Report = Parser->EvaluateParsingCasesFromDataTable(CasesTable, Report.CaseReports[0].ConfidenceThreshold, Report.CaseReports[0].MinimumMargin);
+	const FSemanticParseEvaluationReport Report = Parser->EvaluateParsingCasesFromDataTable(CasesTable, 0.65f, 0.07f);
 
 	AddInfo(FString::Printf(TEXT("Semantic parser evaluation: %d/%d passed, avg best score=%0.4f, false positives=%d, false negatives=%d"),
 		Report.PassedCases,
@@ -206,8 +206,8 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 	{
 		const bool bAccepted =
 			(CaseReport.BestCommand != ENPCAnimationID::ACTION_NONE) &&
-			(CaseReport.BestScore >= CaseReport.ConfidenceThreshold) &&
-			(CaseReport.Margin >= CaseReport.MinimumMargin);
+			(CaseReport.BestScore >= 0.65f) &&
+			(CaseReport.Margin >= 0.07f);
 
 		if (CaseReport.ExpectedCommand == ENPCAnimationID::ACTION_NONE && bAccepted)
 		{
