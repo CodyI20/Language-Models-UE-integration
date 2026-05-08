@@ -20,7 +20,8 @@ public class ParsingSystemUEAddon : ModuleRules
 				"InputCore",
 				"NNE",
 				"Json",
-				"JsonUtilities"
+				"JsonUtilities",
+				"DeveloperSettings" 
 			}
 			);
 		
@@ -59,8 +60,6 @@ public class ParsingSystemUEAddon : ModuleRules
 			);
 			
 		
-			
-		
 		PrivateDependencyModuleNames.AddRange(
 			new[]
 			{
@@ -85,4 +84,3 @@ public class ParsingSystemUEAddon : ModuleRules
 }
 
 // ReSharper restore All
-

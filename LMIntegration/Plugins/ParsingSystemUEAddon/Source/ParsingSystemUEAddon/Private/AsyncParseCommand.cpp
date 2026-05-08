@@ -3,13 +3,14 @@
 #include "AsyncParseCommand.h"
 #include "Async/Async.h"
 
-UAsyncParseCommand* UAsyncParseCommand::AsyncGetBestMatchingCommand(USemanticParser* ParserSystem, const FString& PlayerInput, float ConfidenceThreshold)
+UAsyncParseCommand* UAsyncParseCommand::AsyncGetBestMatchingCommand(USemanticParser* ParserSystem, const FString& PlayerInput, float ConfidenceThreshold, float MinimumMargin)
 {
 	// Node creation + input storage
 	UAsyncParseCommand* Node = NewObject<UAsyncParseCommand>();
 	Node -> Parser = ParserSystem;
 	Node -> InputText = PlayerInput;
 	Node -> Threshold = ConfidenceThreshold;
+	Node -> Margin = MinimumMargin;
 	return Node;
 }
 
@@ -24,7 +25,7 @@ void UAsyncParseCommand::Activate()
 	
 	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
 	{
-		ENPCAnimationID Result = Parser -> GetBestMatchingCommand(InputText, Threshold);
+		ENPCAnimationID Result = Parser -> GetBestMatchingCommand(InputText, Threshold, Margin);
 		
 		AsyncTask(ENamedThreads::GameThread, [this, Result]()
 		{

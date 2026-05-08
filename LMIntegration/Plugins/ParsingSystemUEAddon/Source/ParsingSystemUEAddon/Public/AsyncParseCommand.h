@@ -48,7 +48,7 @@ public:
 	 * @return A configured async action object ready to be activated by Blueprint.
 	 */
 	UFUNCTION(BlueprintCallable, meta=(BlueprintInternalUseOnly="true", Category="Semantic Parsing"))
-	static UAsyncParseCommand* AsyncGetBestMatchingCommand(USemanticParser* ParserSystem, const FString& PlayerInput, float ConfidenceThreshold = 0.7f);
+	static UAsyncParseCommand* AsyncGetBestMatchingCommand(USemanticParser* ParserSystem, const FString& PlayerInput, float ConfidenceThreshold = 0.7f, float MinimumMargin = 0.08f);
 	
 	/**
 	 * Starts the async parsing operation.
@@ -75,4 +75,9 @@ private:
 	 * Confidence threshold used to determine whether parsing succeeded.
 	 */
 	float Threshold;
+
+	/**
+	 * Margin check when the runner-up is too close to the winning command
+	 */
+	float Margin;
 };
