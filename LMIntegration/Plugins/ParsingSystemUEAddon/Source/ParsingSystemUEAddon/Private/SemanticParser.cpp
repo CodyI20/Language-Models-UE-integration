@@ -261,14 +261,13 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 		const ENPCAnimationID* FoundCommand = AliasToCommandMap.Find(AliasText);
 		if (!FoundCommand) continue;
 
-		// 1. Calculate Raw Semantic Score
+		// Raw semantic score
 		float SemanticScore = 0.0f;
 		for (int32 i = 0; i < EmbeddingDimension; ++i)
 		{
 			SemanticScore += PlayerEmbedding[i] * AliasVector[i];
 		}
-
-		// 2. Blend with the Focused (Noise-Free) Embedding if it performs better
+		
 		if (!FocusedPlayerEmbedding.IsEmpty())
 		{
 			float FocusedScore = 0.0f;
@@ -282,8 +281,7 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 				SemanticScore = FMath::Lerp(SemanticScore, FocusedScore, 0.85f);
 			}
 		}
-
-		// 3. Self-Balancing Lexical F1 Score
+		
 		float LexicalF1Score = 0.0f;
 		if (const TSet<int64>* AliasTokenSet = CachedAliasTokenSets.Find(AliasText))
 		{
@@ -295,18 +293,17 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 
 			if (OverlapCount > 0 && InputTokenSet.Num() > 0 && AliasTokenSet->Num() > 0)
 			{
-				// Precision: How much of the PLAYER'S input was useful? (Punishes extra words like "George")
+				// How much of the PLAYER'S input was useful? (Punishes extra words like "George")
 				float Precision = static_cast<float>(OverlapCount) / static_cast<float>(InputTokenSet.Num());
 				
-				// Recall: How much of the ALIAS did they successfully guess? (Punishes missing words like "Hands")
+				// How much of the ALIAS was successfully guessed? (Punishes missing words like "Hands")
 				float Recall = static_cast<float>(OverlapCount) / static_cast<float>(AliasTokenSet->Num());
 
-				// F1 Score: The Harmonic Mean. Naturally balances both without arbitrary penalties.
+				// Balance without arbitrary penalties
 				LexicalF1Score = 2.0f * (Precision * Recall) / (Precision + Recall);
 			}
 		}
-
-		// 4. Final Plug-and-Play Math
+		
 		float AdjustedScore = FMath::Clamp((SemanticScore * SemanticWeight) + (LexicalF1Score * LexicalWeight), -1.0f, 1.0f);
 
 #if !UE_BUILD_SHIPPING

@@ -75,7 +75,7 @@ public class UESTT : ModuleRules
         }
 
         PublicDependencyModuleNames.AddRange(new string[] {
-            "Core", "CoreUObject", "Engine", "Projects", "AudioCapture", "AudioMixer"
+            "Core", "CoreUObject", "Engine", "Projects", "AudioCapture", "AudioMixer", "RuntimeAudioImporter", "RuntimeAudioImporterEditor"
         });
         PrivateDependencyModuleNames.AddRange(new string[]
         {

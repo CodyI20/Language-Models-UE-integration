@@ -2,8 +2,6 @@
 
 
 #include "SpeechToTextComponent.h"
-
-#include "AudioMixerBlueprintLibrary.h"
 #include "EnhancedInputSubsystemInterface.h"
 #include "Kismet/GameplayStatics.h"
 #include "EnhancedInputSubsystems.h"
@@ -12,7 +10,8 @@
 #include "HAL/PlatformFileManager.h"
 #include "Engine/World.h"
 #include "Engine/LocalPlayer.h"
-
+#include "Async/Async.h"
+#include "RuntimeAudioExporter.h"
 
 USpeechToTextComponent::USpeechToTextComponent()
 {
@@ -21,15 +20,89 @@ USpeechToTextComponent::USpeechToTextComponent()
 
 void USpeechToTextComponent::StartRecording()
 {
-	AudioCapture->Start();
-	UAudioMixerBlueprintLibrary::StartRecordingOutput(this, 0.f, SoundSubmix);
+	ULog::Info(TEXT("SpeechToTextComponent"), TEXT("VAD triggered. Relying on existing CapturableSoundWave buffer..."));
 }
 
 void USpeechToTextComponent::StopRecording()
 {
-	AudioCapture->Stop();
-	FileToOverride = UAudioMixerBlueprintLibrary::StopRecordingOutput(this, EAudioRecordingExportType::WavFile, RecordingName, WavFileDirectory,
-		SoundSubmix, FileToOverride.Get());
+	if (!CapturableSoundWave) return;
+	
+	CapturableSoundWave->StopCapture();
+
+	FString FullFilePath = FPaths::Combine(WavFileDirectory, RecordingName + TEXT(".wav"));
+    
+	ULog::Info(TEXT("SpeechToTextComponent"), FString::Printf(TEXT("Exporting audio to: %s"), *FullFilePath));
+	
+	URuntimeAudioExporter::ExportSoundWaveToFile(
+		CapturableSoundWave,
+		FullFilePath,
+		ERuntimeAudioFormat::Wav,
+		100, // Quality (100 is max, standard for lossless WAV)
+		FRuntimeAudioExportOverrideOptions(), // Empty for default sample rate
+		FOnAudioExportToFileResultNative::CreateWeakLambda(this, [this](bool bSucceeded)
+		{
+			if (bSucceeded)
+			{
+				ULog::Info(TEXT("SpeechToTextComponent"), TEXT("Successfully exported VAD audio to WAV!"));
+                
+				if (this->OnRecordingStopped.IsBound())
+				{
+				   this->OnRecordingStopped.Broadcast();
+				}
+			}
+			else
+			{
+				ULog::Error(TEXT("SpeechToTextComponent"), TEXT("Failed to export WAV file."));
+			}
+			CapturableSoundWave->ReleaseMemory();
+			CapturableSoundWave->StartCapture(INDEX_NONE);
+			
+		})
+	);
+}
+
+void USpeechToTextComponent::SetupVAD()
+{
+	ULog::Info(TEXT("SpeechToTextComponent.cpp - SetupVAD"), TEXT("Setting up VAD..."));
+	CapturableSoundWave = UCapturableSoundWave::CreateCapturableSoundWave();
+	
+	if (!CapturableSoundWave)
+	{
+		ULog::Error(TEXT("SpeechToTextComponent.cpp - SetupVAD"), TEXT("Failed to create CapturableSoundWave!"));
+		return;
+	}
+	
+	CapturableSoundWave->SetMinimumSpeechDuration(0.15f);
+	
+	CapturableSoundWave->ToggleVAD(true);
+	
+	// Subscribe to speech detection delegates
+	CapturableSoundWave->OnSpeechStartedNative.AddWeakLambda(this, [this]()
+	{
+	   AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<USpeechToTextComponent>(this)]()
+	   {
+		   if (WeakThis.IsValid())
+		   {
+			   ULog::Info(TEXT("SpeechToTextComponent.cpp"), TEXT("Speech started detected on Game Thread!"));
+			   WeakThis->StartRecording();
+		   }
+	   });
+	});
+	
+	CapturableSoundWave->OnSpeechEndedNative.AddWeakLambda(this, [this]()
+	{
+	   AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<USpeechToTextComponent>(this)]()
+	   {
+		   if (WeakThis.IsValid())
+		   {
+			   ULog::Info(TEXT("SpeechToTextComponent.cpp"), TEXT("Speech stopped detected on Game Thread!"));
+			   WeakThis->StopRecording();
+		   }
+	   });
+	});
+	
+	CapturableSoundWave->StartCapture(INDEX_NONE);
+	//
 }
 
 void USpeechToTextComponent::SetWaVFileDirectory()
@@ -64,31 +137,7 @@ void USpeechToTextComponent::BeginPlay()
 	
 	SetWaVFileDirectory();
 	SetFullAudioFilePath();
-
-	AActor* OwningActor = GetOwner();
-	if (!OwningActor)
-	{
-		ULog::Error(TEXT("SpeechToTextComponent.cpp - BeginPlay"), TEXT("Actor is NULL"));
-		return;
-	}
-	
-	// Adds the audio capture to the local player character
-	AudioCapture = static_cast<UAudioCaptureComponent*>(OwningActor->AddComponentByClass(UAudioCaptureComponent::StaticClass(),
-		false,
-		FTransform::Identity,
-		true // bDeferredFinish being true allows for the injection of property changes before the component enters the world and starts its logic
-		));
-	
-	if (!AudioCapture)
-	{
-		ULog::Error(TEXT("SpeechToTextComponent.cpp - BeginPlay"), TEXT("Audio Capture Component is NULL"));
-		return;
-	}
-	
-	// Prevents the component from automatically capturing and playing audio on game launch
-	AudioCapture->bAutoActivate = false;
-	AudioCapture->SoundSubmix = SoundSubmix;
-	OwningActor->FinishAddComponent(AudioCapture, false, FTransform::Identity);
+	SetupVAD();
 	
 	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	

@@ -34,6 +34,10 @@
 		{
 			"Name": "UTLogger",
 			"Enabled": true
+		},
+		{
+			"Name": "RuntimeAudioImporter",
+			"Enabled": true
 		}
 	],
 	"PreBuildSteps":

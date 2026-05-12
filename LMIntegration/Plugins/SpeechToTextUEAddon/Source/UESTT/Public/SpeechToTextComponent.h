@@ -5,9 +5,11 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "AudioCaptureComponent.h"
+#include "Sound/CapturableSoundWave.h"
 #include "SpeechToTextComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnFinishedSTT, bool, SuccessResult, FString, TextResult, float, ProcessingTimeResult, FString, ErrorMessageResult);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRecordingStopped);
 
 UCLASS(BLueprintable, ClassGroup = (Custom))
 class UESTT_API USpeechToTextComponent : public UActorComponent
@@ -37,11 +39,22 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "SpeechToText")
 	FString AudioFilePath;
 	
+	UPROPERTY(BlueprintAssignable, Category = "SpeechToText")
+	FOnRecordingStopped OnRecordingStopped;
+	
+	UPROPERTY()
+	UCapturableSoundWave* CapturableSoundWave;
+	
 	UFUNCTION(BlueprintCallable, Category = "SpeechToText")
 	void StartRecording();
 	
 	UFUNCTION(BlueprintCallable, Category = "SpeechToText")
 	void StopRecording();
+	
+	// Called in BeginPlay to set up the VAD and subscribe to its delegates
+	// Could be manually called in BP if needed
+	UFUNCTION(BlueprintCallable, Category = "SpeechToText")
+	void SetupVAD();
 	
 private:
 	void SetWaVFileDirectory();
