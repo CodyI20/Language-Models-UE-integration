@@ -72,9 +72,10 @@ void USpeechToTextComponent::SetupVAD()
 		return;
 	}
 	
-	CapturableSoundWave->SetMinimumSpeechDuration(0.15f);
-	
 	CapturableSoundWave->ToggleVAD(true);
+	CapturableSoundWave->SetMinimumSpeechDuration(250.0f);
+	CapturableSoundWave->SetSilenceDuration(200.0f);
+	
 	
 	// Subscribe to speech detection delegates
 	CapturableSoundWave->OnSpeechStartedNative.AddWeakLambda(this, [this]()

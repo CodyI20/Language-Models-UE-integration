@@ -35,7 +35,7 @@ UStreamingSoundWave::UStreamingSoundWave(const FObjectInitializer& ObjectInitial
 
 bool UStreamingSoundWave::ToggleVAD(bool bVAD)
 {
-	VADInstance = bVAD ? NewObject<URuntimeVoiceActivityDetector>() : nullptr;
+	VADInstance = bVAD ? NewObject<URuntimeVoiceActivityDetector>(this) : nullptr;
 	if (VADInstance)
 	{
 		VADInstance->OnSpeechStartedNative.AddWeakLambda(this, [WeakThis = MakeWeakObjectPtr(this)]()
@@ -84,6 +84,7 @@ bool UStreamingSoundWave::SetMinimumSpeechDuration(int32 InDuration)
 	if (VADInstance)
 	{
 		VADInstance->MinimumSpeechDuration = InDuration;
+		return true;
 	}
 	UE_LOG(LogRuntimeAudioImporter, Error, TEXT("Unable to set minimum speech duration as the VAD instance is not valid"));
 	return false;
@@ -94,6 +95,7 @@ bool UStreamingSoundWave::SetSilenceDuration(int32 InDuration)
 	if (VADInstance)
 	{
 		VADInstance->SilenceDuration = InDuration;
+		return true;
 	}
 	UE_LOG(LogRuntimeAudioImporter, Error, TEXT("Unable to set silence duration as the VAD instance is not valid"));
 	return false;
