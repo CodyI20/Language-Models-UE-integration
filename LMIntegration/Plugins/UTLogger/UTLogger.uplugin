@@ -18,13 +18,7 @@
 		{
 			"Name": "UTLogger",
 			"Type": "Runtime",
-			"LoadingPhase": "Default",
-			"PlatformDenyList": [
-				"IOS",
-				"TVOS",
-				"Mac",
-				"Linux"
-			]
+			"LoadingPhase": "Default"
 		}
 	]
 }

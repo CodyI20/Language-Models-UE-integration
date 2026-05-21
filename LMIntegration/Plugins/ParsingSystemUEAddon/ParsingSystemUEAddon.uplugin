@@ -23,10 +23,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "NNEDenoiser",
-			"Enabled": true
-		},
-		{
 			"Name": "NNERuntimeCoreML",
 			"Enabled": true
 		},

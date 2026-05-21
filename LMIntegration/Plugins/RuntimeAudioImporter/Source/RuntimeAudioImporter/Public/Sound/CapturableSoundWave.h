@@ -109,7 +109,7 @@ private:
 	Audio::FAudioCaptureIOS AudioCapture;
 #elif PLATFORM_ANDROID
 	/** Audio capture instance specific to Android. Implemented manually due to the engine not properly supporting Android audio capture at the moment */
-	Audio::FAudioCaptureAndroid AudioCapture;
+	Audio::FAudioCapture AudioCapture;
 #else
 	/** Audio capture instance */
 	Audio::FAudioCapture AudioCapture;

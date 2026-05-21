@@ -222,6 +222,7 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         return Result;
     }
     
+#if PLATFORM_WINDOWS
     // Determine the active binaries path selected at module startup so we look in the correct folder
     TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin("SpeechToText");
     if (!Plugin.IsValid())
@@ -260,6 +261,7 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         Result.ErrorMessage = TEXT("Whisper DLL not found. Please reinstall the plugin.");
         return Result;
     }
+#endif //PLATFORM_WINDOWS
     
     FString ContentDir = IPluginManager::Get().FindPlugin("SpeechToText")->GetContentDir();
     FString ModelDir = FPaths::Combine(ContentDir, TEXT("STTModel"));
