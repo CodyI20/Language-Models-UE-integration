@@ -25,6 +25,12 @@
 *.a
 *.lib
 
+# Don't ignore libraries in plugins
+!Plugins/**/*.so
+!Plugins/**/*.a
+!Plugins/**/*.lib
+!Plugins/**/*.dll
+
 # Executables
 *.exe
 *.out

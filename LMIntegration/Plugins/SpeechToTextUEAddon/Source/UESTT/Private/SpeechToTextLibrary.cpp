@@ -25,11 +25,11 @@ static void WhisperLogCallback(ggml_log_level level, const char * text, void * u
     if (LogText.IsEmpty()) return;
     
     if (level == GGML_LOG_LEVEL_ERROR) {
-        ULog::Error(TEXT("SpeechToTextLibrary.cpp - WhisperLogCallback"), *LogText);
+        UE_LOG(LogTranscription, Error, TEXT("%s"), *LogText);
     } else if (level == GGML_LOG_LEVEL_WARN) {
-        ULog::Warning(TEXT("SpeechToTextLibrary.cpp - WhisperLogCallback"), *LogText);
+        UE_LOG(LogTranscription, Warning, TEXT("%s"), *LogText);
     } else {
-        ULog::Info(TEXT("SpeechToTextLibrary.cpp - WhisperLogCallback"), *LogText);
+        UE_LOG(LogTranscription, Log, TEXT("%s"), *LogText);
     }
 }
 

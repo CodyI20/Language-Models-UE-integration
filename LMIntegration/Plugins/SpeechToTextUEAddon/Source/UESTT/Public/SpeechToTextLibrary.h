@@ -82,7 +82,10 @@ struct FTranscriptionConfig
     
     // Performance Settings
     
-    /** Whether to use CUDA GPU acceleration if available. */
+    /** Whether to use CUDA GPU acceleration if available.
+     * IMPORTANT: ONLY use this when making builds for Win64.
+     * The GPU of the Virtual Reality headset is already under a lot of stress, rendering two high quality screens.
+     */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speech to Text|Performance")
     bool UseGPU = true;
     
