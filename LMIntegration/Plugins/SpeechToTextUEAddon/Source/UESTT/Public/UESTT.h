@@ -1,5 +1,3 @@
-// Copyright 2025 Lukas7251. All Rights Reserved.
-
 #pragma once
 
 #include "Modules/ModuleManager.h"

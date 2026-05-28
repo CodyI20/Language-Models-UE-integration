@@ -1,5 +1,3 @@
-// Copyright 2025 Lukas7251. All Rights Reserved.
-
 #include "UESTT.h"
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"

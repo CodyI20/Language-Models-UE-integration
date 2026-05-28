@@ -99,13 +99,17 @@ TArray<float> ConvertAudioToWhisperFormat(const TArray<uint8>& RawAudioData, int
     const float ChannelMultiplier = 1.0f/static_cast<float>(NumChannels);
     
     if (BitsPerSample == 16) {
-        const int16* SampleData = reinterpret_cast<const int16*>(&RawAudioData[dataOffset]);
         constexpr float NormalizationFactor = 1.0f/32768.0f;
         for (int i = 0; i < numSamples; i++) {
             float Sum = 0.0f;
             for (int ch = 0; ch < NumChannels; ch++)
             {
-                Sum += static_cast<float>(*SampleData++) * NormalizationFactor;
+                int16 SampleValue = 0;
+                // Safely copy the 2 bytes regardless of memory alignment on ARM
+                int ByteIndex = dataOffset + ((i * NumChannels + ch) * sizeof(int16));
+                FMemory::Memcpy(&SampleValue, &RawAudioData[ByteIndex], sizeof(int16));
+                
+                Sum += static_cast<float>(SampleValue) * NormalizationFactor;
             }
             
             PCMSamples[i] = Sum * ChannelMultiplier;
@@ -125,12 +129,16 @@ TArray<float> ConvertAudioToWhisperFormat(const TArray<uint8>& RawAudioData, int
         }
     }
     else if (BitsPerSample == 32 && bytesPerSample == 4) {
-        const float* SampleData = reinterpret_cast<const float*>(&RawAudioData[dataOffset]);
         for (int i = 0; i < numSamples; i++) {
             float Sum = 0.0f;
             for (int ch = 0; ch < NumChannels; ch++)
             {
-                Sum += *SampleData++;
+                float SampleValue = 0.0f;
+                // Safely copy the 4 bytes regardless of memory alignment on ARM
+                int ByteIndex = dataOffset + ((i * NumChannels + ch) * sizeof(float));
+                FMemory::Memcpy(&SampleValue, &RawAudioData[ByteIndex], sizeof(float));
+                
+                Sum += SampleValue;
             }
             PCMSamples[i] = Sum * ChannelMultiplier;
         }
@@ -182,17 +190,39 @@ TArray<float> ResampleAudio(const TArray<float>& InputSamples, int SourceSampleR
 
 void USpeechToTextLibrary::TranscribeAudioFileAsync(const FString& AudioFilePath, FTranscriptionConfig Config, const FOnTranscriptionCompleted& CompletionCallback)
 {
-    // Execute on a dedicated background thread instead of the thread pool to avoid cuBLAS stack overflows
-    Async(EAsyncExecution::Thread, [AudioFilePath, Config, CompletionCallback]()
-    {
-        FTranscriptionResult Result = USpeechToTextLibrary::TranscribeAudioInternal(AudioFilePath, Config);
-        
-        // Return the result to the Game Thread
-        AsyncTask(ENamedThreads::GameThread, [Callback = CompletionCallback, FinalResult = MoveTemp(Result)]()
+    // Allocate a pointer to our thread pointer on the heap so we can pass it safely to both lambdas
+    FThread** ThreadPtr = new FThread*(nullptr);
+
+    // Create the thread. 
+    // Because this lambda is defined inside a member function of USpeechToTextLibrary, 
+    // it inherently has access to USpeechToTextLibrary's protected/private methods!
+    *ThreadPtr = new FThread(
+        TEXT("WhisperTranscriptionThread"),
+        [ThreadPtr, AudioFilePath, Config, CompletionCallback]()
         {
-            Callback.ExecuteIfBound(FinalResult);
-        });
-    });
+            // 1. Do the heavy transcription lifting on the background thread
+            FTranscriptionResult Result = USpeechToTextLibrary::TranscribeAudioInternal(AudioFilePath, Config);
+
+            // 2. Send the result and cleanup instructions back to the Game Thread
+            AsyncTask(ENamedThreads::GameThread, [ThreadPtr, Callback = CompletionCallback, FinalResult = MoveTemp(Result)]()
+            {
+                // 3. Trigger the Blueprint/C++ callback with the text
+                Callback.ExecuteIfBound(FinalResult);
+
+                // 4. Safely Join and clean up the thread to satisfy Unreal's strict memory rules
+                if (*ThreadPtr)
+                {
+                    (*ThreadPtr)->Join();
+                    delete *ThreadPtr;
+                }
+                
+                // 5. Delete the heap-allocated pointer itself
+                delete ThreadPtr;
+            });
+        },
+        8 * 1024 * 1024, // 8 MB Stack Size specifically to prevent Android SIGSEGV crashes
+        TPri_Normal
+    );
 }
 
 FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString& AudioFilePath, const FTranscriptionConfig& Config)
@@ -282,6 +312,14 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         Result.ErrorMessage = FString::Printf(TEXT("No speech recognition model found. Please place a model file (*.bin) in your project's %s directory or specify a valid model path."), *ModelDir);
         return Result;
     }
+
+    // NEW ANDROID FIX: Load the model into memory safely so it works inside packaged APKs
+    TArray<uint8> ModelBuffer;
+    if (!FFileHelper::LoadFileToArray(ModelBuffer, *ModelDir))
+    {
+        Result.ErrorMessage = TEXT("Failed to load model file into memory. Ensure it packaged correctly.");
+        return Result;
+    }
     
     TArray<uint8> RawAudioData;
     if (!FFileHelper::LoadFileToArray(RawAudioData, *AudioFilePath))
@@ -340,10 +378,12 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         }
         // Captures all internal whisper/ggml errors
         whisper_log_set(WhisperLogCallback,nullptr);
-        ctx = whisper_init_from_file_with_params(TCHAR_TO_UTF8(*ModelDir), Cparams);
+        
+        // NEW ANDROID FIX: Read from the memory buffer instead of the raw file path
+        ctx = whisper_init_from_buffer_with_params(ModelBuffer.GetData(), ModelBuffer.Num(), Cparams);
         
         if (ctx == nullptr) {
-            Result.ErrorMessage = TEXT("Failed to initialize model.");
+            Result.ErrorMessage = TEXT("Failed to initialize model from memory buffer.");
             return Result;
         }
     }
