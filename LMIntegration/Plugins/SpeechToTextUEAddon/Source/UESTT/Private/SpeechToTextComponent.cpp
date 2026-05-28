@@ -12,6 +12,7 @@
 #include "Engine/LocalPlayer.h"
 #include "Async/Async.h"
 #include "RuntimeAudioExporter.h"
+#include "Misc/Paths.h"
 
 USpeechToTextComponent::USpeechToTextComponent()
 {

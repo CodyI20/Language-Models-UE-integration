@@ -9,6 +9,7 @@
 #include "Misc/FileHelper.h"
 #include "SemanticParser.h"
 #include "SemanticParserSettings.h"
+#include "UObject/Package.h"
 
 namespace
 {
