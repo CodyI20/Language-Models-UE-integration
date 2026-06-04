@@ -86,8 +86,7 @@ bool FSemanticParserCalibrationTest::RunTest(const FString& Parameters)
 	FString CasesPath = Settings->TestEvaluationCasesTable.ToSoftObjectPath().ToString();
 	UDataTable* CasesTable = LoadDataTableWithCsvOverride(*this, Parameters, TEXT("CasesCsv="), *CasesPath, FSemanticParseCaseRow::StaticStruct(), TEXT("Evaluation cases"));
 	if (!CasesTable) return false;
-
-	// Notice we lowered the passing threshold slightly to 0.70 to account for F1 standard ranges.
+	
 	const FSemanticParseEvaluationReport Report = Parser->EvaluateParsingCasesFromDataTable(CasesTable, 0.70f, 0.05f);
 
 	AddInfo(FString::Printf(TEXT("Evaluation: %d/%d passed, avg best score=%0.4f, false positives=%d, false negatives=%d"),

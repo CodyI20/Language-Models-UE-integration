@@ -24,11 +24,9 @@ void USpeechToTextComponent::StartRecording()
 void USpeechToTextComponent::StopRecording()
 {
 	if (!CapturableSoundWave) return;
-	
 	CapturableSoundWave->StopCapture();
-
+	
 	FString FullFilePath = FPaths::Combine(WavFileDirectory, RecordingName + TEXT(".wav"));
-    
 	ULog::Info(TEXT("SpeechToTextComponent"), FString::Printf(TEXT("Exporting audio to: %s"), *FullFilePath));
 	
 	URuntimeAudioExporter::ExportSoundWaveToFile(
@@ -36,7 +34,7 @@ void USpeechToTextComponent::StopRecording()
 		FullFilePath,
 		ERuntimeAudioFormat::Wav,
 		100, // Quality (100 is max, standard for lossless WAV)
-		FRuntimeAudioExportOverrideOptions(), // Empty for default sample rate
+		FRuntimeAudioExportOverrideOptions(),
 		FOnAudioExportToFileResultNative::CreateWeakLambda(this, [this](bool bSucceeded)
 		{
 			if (bSucceeded)
@@ -129,7 +127,6 @@ void USpeechToTextComponent::SetFullAudioFilePath()
 	AudioFilePath =  FPaths::Combine(WavFileDirectory,FString::Printf(TEXT("%s.wav"), *RecordingName));
 }
 
-// Called when the game starts
 void USpeechToTextComponent::BeginPlay()
 {
 	Super::BeginPlay();

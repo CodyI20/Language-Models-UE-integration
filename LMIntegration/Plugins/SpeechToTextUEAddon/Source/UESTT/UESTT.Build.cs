@@ -75,17 +75,13 @@ public class UESTT : ModuleRules
 		// ANDROID
 		else if (Target.Platform == UnrealTargetPlatform.Android)
 		{
-			// Point this to the folder containing your compiled .a files
 			string AndroidLibDir = Path.Combine(TP_Source, "lib/Android/Release"); 
-
-			// Provide the libraries to the linker to fix the "undefined symbol" errors
+			
 			PublicAdditionalLibraries.Add(Path.Combine(AndroidLibDir, "libwhisper.a"));
 			PublicAdditionalLibraries.Add(Path.Combine(AndroidLibDir, "libggml.a"));
 			PublicAdditionalLibraries.Add(Path.Combine(AndroidLibDir, "libggml-base.a"));
 			PublicAdditionalLibraries.Add(Path.Combine(AndroidLibDir, "libggml-cpu.a"));
 			
-			// Note: We do not need PublicDelayLoadDLLs or RuntimeDependencies for Android 
-			// because the static (.a) libraries are baked directly into the game's executable!
 		}
         
 		// Ensures the Content folder is available in the packaged build

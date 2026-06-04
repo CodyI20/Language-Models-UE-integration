@@ -293,10 +293,10 @@ FSemanticParseScoreReport USemanticParser::GetBestMatchingCommandReport(const FS
 
 			if (OverlapCount > 0 && InputTokenSet.Num() > 0 && AliasTokenSet->Num() > 0)
 			{
-				// How much of the PLAYER'S input was useful? (Punishes extra words like "George")
+				// How much of the player's input was useful? (Punishes extra words)
 				float Precision = static_cast<float>(OverlapCount) / static_cast<float>(InputTokenSet.Num());
 				
-				// How much of the ALIAS was successfully guessed? (Punishes missing words like "Hands")
+				// How much of the alias was successfully guessed? (Punishes missing words)
 				float Recall = static_cast<float>(OverlapCount) / static_cast<float>(AliasTokenSet->Num());
 
 				// Balance without arbitrary penalties

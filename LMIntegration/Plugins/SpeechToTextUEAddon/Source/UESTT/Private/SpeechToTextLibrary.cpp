@@ -195,28 +195,27 @@ void USpeechToTextLibrary::TranscribeAudioFileAsync(const FString& AudioFilePath
 
     // Create the thread. 
     // Because this lambda is defined inside a member function of USpeechToTextLibrary, 
-    // it inherently has access to USpeechToTextLibrary's protected/private methods!
+    // it inherently has access to USpeechToTextLibrary's protected/private methods
     *ThreadPtr = new FThread(
         TEXT("WhisperTranscriptionThread"),
         [ThreadPtr, AudioFilePath, Config, CompletionCallback]()
         {
-            // 1. Do the heavy transcription lifting on the background thread
+            // Background thread transcription
             FTranscriptionResult Result = USpeechToTextLibrary::TranscribeAudioInternal(AudioFilePath, Config);
 
-            // 2. Send the result and cleanup instructions back to the Game Thread
+            // Result sent back to the game thread
             AsyncTask(ENamedThreads::GameThread, [ThreadPtr, Callback = CompletionCallback, FinalResult = MoveTemp(Result)]()
             {
-                // 3. Trigger the Blueprint/C++ callback with the text
+                // Callback trigger
                 Callback.ExecuteIfBound(FinalResult);
 
-                // 4. Safely Join and clean up the thread to satisfy Unreal's strict memory rules
+                // Cleanup
                 if (*ThreadPtr)
                 {
                     (*ThreadPtr)->Join();
                     delete *ThreadPtr;
                 }
                 
-                // 5. Delete the heap-allocated pointer itself
                 delete ThreadPtr;
             });
         },
@@ -227,7 +226,6 @@ void USpeechToTextLibrary::TranscribeAudioFileAsync(const FString& AudioFilePath
 
 FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString& AudioFilePath, const FTranscriptionConfig& Config)
 {
-    // Start timing
     double StartTime = FPlatformTime::Seconds();
     
     FTranscriptionResult Result;
@@ -253,7 +251,6 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     }
     
 #if PLATFORM_WINDOWS
-    // Determine the active binaries path selected at module startup so we look in the correct folder
     TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin("SpeechToText");
     if (!Plugin.IsValid())
     {
@@ -265,7 +262,7 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     FSpeechToTextModule& STTModule = FModuleManager::GetModuleChecked<FSpeechToTextModule>("UESTT");
     FString ActiveBinariesPath = STTModule.GetActiveBinariesPath();
 
-    // Fallback order if ActiveBinariesPath is empty (e.g., initialization failure)
+    // Fallback order if ActiveBinariesPath is empty
     TArray<FString> CandidateDirs;
     if (!ActiveBinariesPath.IsEmpty())
     {
@@ -313,7 +310,7 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         return Result;
     }
 
-    // NEW ANDROID FIX: Load the model into memory safely so it works inside packaged APKs
+    // Load the model into memory safely so it works inside packaged APKs
     TArray<uint8> ModelBuffer;
     if (!FFileHelper::LoadFileToArray(ModelBuffer, *ModelDir))
     {
@@ -379,7 +376,7 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         // Captures all internal whisper/ggml errors
         whisper_log_set(WhisperLogCallback,nullptr);
         
-        // NEW ANDROID FIX: Read from the memory buffer instead of the raw file path
+        // Read from the memory buffer instead of the raw file path
         ctx = whisper_init_from_buffer_with_params(ModelBuffer.GetData(), ModelBuffer.Num(), Cparams);
         
         if (ctx == nullptr) {
@@ -397,17 +394,15 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     params.print_progress = false;
     params.print_timestamps = true; // Always enable for segment data
     params.translate = Config.Translate;
-    params.no_context = false; // Always use context for better accuracy
+    params.no_context = false; // Using context = better accuracy
     params.token_timestamps = false;
     params.thold_pt = Config.SegmentSensitivity;
     params.max_tokens = 0;
     
-    // Declare the conversion object OUTSIDE the if-statement so it stays in scope
     FTCHARToUTF8 ConvertedLanguage(*Config.Language);
     
     if (!Config.Language.IsEmpty())
     {
-        // Validate language code is reasonable (2-3 characters or "auto")
         if (Config.Language != TEXT("auto") && (Config.Language.Len() < 2 || Config.Language.Len() > 3))
         {
             whisper_free(ctx);
@@ -415,7 +410,6 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
             return Result;
         }
         
-        // Safely grab the pointer from our long-lived object
         params.language = ConvertedLanguage.Get(); 
     }
     else
@@ -425,7 +419,6 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     
     if (Config.Threads > 0)
     {
-        // Enforce the same limits as Blueprint meta tags
         params.n_threads = FMath::Clamp(Config.Threads, 1, 32);
     }
     else
@@ -448,7 +441,6 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
         return Result;
     }
     
-    // Capture detected language
     int lang_id = whisper_full_lang_id(ctx);
     if (lang_id >= 0) {
         const char* lang_str = whisper_lang_str(lang_id);
@@ -470,7 +462,7 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
     const int n_segments = whisper_full_n_segments(ctx);
     
     if (n_segments > 0) {
-        // Pre-allocating memory to avoid runtime reallocations (it's expensive on the CPU)
+        // Pre-allocating memory to avoid runtime reallocations
         Result.Segments.Reserve(Result.Segments.Num() + n_segments);
         
         // Assuming there are around 50 chars per segment
@@ -492,7 +484,7 @@ FTranscriptionResult USpeechToTextLibrary::TranscribeAudioInternal(const FString
                     // Build segment data with timestamps and confidence
                     FTranscriptionSegment& Segment = Result.Segments.Emplace_GetRef();
                     Segment.Text = MoveTemp(SegmentStr);
-                    Segment.StartTime = whisper_full_get_segment_t0(ctx, i) * 0.01f; // Convert to seconds (multiplication is faster than division)
+                    Segment.StartTime = whisper_full_get_segment_t0(ctx, i) * 0.01f; // Convert to seconds
                     Segment.EndTime = whisper_full_get_segment_t1(ctx, i) * 0.01f;
                     
                     // Calculate average confidence from segment tokens

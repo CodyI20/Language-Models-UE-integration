@@ -27,10 +27,8 @@ void FSpeechToTextModule::StartupModule()
 			"Please make sure you have installed the Visual C++ Redistributable for Visual Studio 2019 or newer."));
 	}
 #elif PLATFORM_ANDROID
-	// For Android, we statically linked the libraries via .a files.
-	// No manual loading is needed, they are already part of the binary!
 	bInitialized = true;
-	bGPUAccelerationAvailable = false; // Mobile typically relies on CPU
+	bGPUAccelerationAvailable = false;
 	ActiveBinariesPath = TEXT("");
 #endif
 }
