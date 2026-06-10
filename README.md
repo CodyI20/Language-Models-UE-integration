@@ -86,6 +86,9 @@ There are currently no formal contribution guidelines. If you would like to cont
 * Create a feature branch from the most recent relevant branch (e.g., PackagingFixes or LuxTTSBranch).  
 * Ensure your changes build cleanly against UE 5.6 on Win64.  
 * Open a pull request with a clear description of what was changed and why.
+
+## Video
+An explanatory video going in-depth about the process can be found here: [Kaltura Media Saxion](https://media.saxion.nl/media/t/0_6ls0he84)
   
 > Note: For bug reports or feature requests, open a GitHub Issue.
 
